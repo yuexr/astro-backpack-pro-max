@@ -1,4 +1,4 @@
-"""Add the extra slots and apply the backpack changes."""
+"""build the backpack assets"""
 
 import copy
 import hashlib
@@ -12,13 +12,16 @@ from game_assets import ENV, GUI, REPAK, extract
 from mesh_assets import build_meshes
 from printer_tooltip import build_printer_assets, patch_backpack
 from settings import (
+    AUTO_ARM_BLOCKER,
     GAME_BUILD,
     ITEM_SIZE_MULTIPLIER,
     MAIN_SLOT_SCALE,
+    MODEL_STYLE,
     OUT,
     PAK_NAME,
     PANEL_RETRACTION_FIX,
     PKG,
+    PRINTER_ICON_SCALE,
     VERSION,
 )
 from visuals import add_visual_components
@@ -167,7 +170,7 @@ def configure(d, slot_names, front, corpse=False):
         scale.update(X=0.09, Y=0.09)
         xyz(p["RelativeLocation"]).update(X=geometry["battery_centre_native_x"], Y=0.0)
     if not corpse:
-        # Suppress only the original mount visual; its attachment slot stays native.
+        # hide the old mount mesh; keep the actual drone slot
         setbool(d, ex["Creative Drone Slot_GEN_VARIABLE"], "SlotVisible", False)
         # Hide the tiny printer speck while the printer is closed.
         printer = ex["CLIENT Printer View"]["ScriptBytecode"]
@@ -208,7 +211,7 @@ def build():
         from panel_retraction import verify_native_sources
 
         verify_native_sources()
-    # A build with the workaround disabled must not retain its old override.
+    # remove any leftover override when this fix is switched off
     if not PANEL_RETRACTION_FIX:
         for suffix in [".uasset", ".uexp"]:
             old = STAGE / (
@@ -237,7 +240,27 @@ def build():
         configure(d, names, geometry["front_components"], corpse)
         if not corpse:
             patch_backpack(d)
+            from visual_events import patch_backpack as patch_visual_events
+
+            patch_visual_events(d)
+            if AUTO_ARM_BLOCKER:
+                from auto_arm import patch_backpack_slots
+
+                patch_backpack_slots(d)
         write_asset(d, "Astro/Content/" + asset + ".uasset", asset.rsplit("/", 1)[-1])
+    from auto_arm import SNAIL, TOOL
+
+    if AUTO_ARM_BLOCKER:
+        from auto_arm import assets
+
+        for label, document, target in assets():
+            write_asset(document, target + ".uasset", label)
+    else:
+        for target in [TOOL, SNAIL]:
+            for suffix in [".uasset", ".uexp"]:
+                stale = STAGE / (target + suffix)
+                if stale.exists():
+                    stale.unlink()
     catalog = patch_catalog_startup()
     if PANEL_RETRACTION_FIX:
         from panel_retraction import MISSION, patch_catalog, patch_mission
@@ -249,10 +272,13 @@ def build():
     write_asset(
         catalog, "Astro/Content/Items/Catalog/BackpackCatalog.uasset", "BackpackCatalog"
     )
+    from visual_events import CHARACTER, character_asset
+
+    write_asset(character_asset(), CHARACTER + ".uasset", "DesignAstro")
     metadata = {
         "schema_version": 2,
         "name": "Backpack Pro Max",
-        # Keep the same mod ID when replacing an older version.
+        # keep the old ID so updates replace the existing mod
         "mod_id": "CompactBackpack16",
         "author": "yuexr",
         "description": "16 backpack slots, 80% item size and an info button to hide or show the printer recipe tooltip.",
@@ -260,6 +286,13 @@ def build():
         "game_build": GAME_BUILD,
         "sync": "serverclient",
     }
+    if MODEL_STYLE == "luxe":
+        metadata["name"] += " Luxe"
+    if AUTO_ARM_BLOCKER:
+        metadata["name"] += " + Auto-arm Blocker"
+        metadata["description"] += (
+            " Blocks auto-arm input to player slots and feeding carried galastropods."
+        )
     (STAGE / "metadata.json").write_text(json.dumps(metadata, indent=2))
     pak = OUT / PAK_NAME
     subprocess.run(
@@ -270,15 +303,19 @@ def build():
     )
     report = {
         "version": VERSION,
+        "model_style": MODEL_STYLE,
         "vanilla_sources": provenance,
         "geometry": geometry,
         "main_slot_scale": MAIN_SLOT_SCALE,
         "item_size_multiplier": ITEM_SIZE_MULTIPLIER,
-        "native_auxiliaries_unchanged": True,
+        "native_auxiliary_transforms_unchanged": True,
         "controls_and_drone": "vanilla transforms and drone geometry; separate mount shares backpack material and native socket UVs",
         "installed": False,
         "gameplay_tested": False,
         "panel_retraction_fix": PANEL_RETRACTION_FIX,
+        "auto_arm_blocker": AUTO_ARM_BLOCKER,
+        "printer_icon_scale": PRINTER_ICON_SCALE,
+        "event_based_visual_updates": True,
         "pak_sha256": hashlib.sha256(pak.read_bytes()).hexdigest(),
     }
     (OUT / "build-report.json").write_text(json.dumps(report, indent=2))

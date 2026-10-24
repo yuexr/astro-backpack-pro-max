@@ -6,12 +6,17 @@ import struct
 
 import numpy as np
 from asset_io import HERE, gltf
+from settings import MODEL_STYLE, model_paths
 
-MODEL = HERE.parent / "models/backpack-pro-max.glb"
-INFO = MODEL.with_name("backpack-pro-max.json")
+MODEL, INFO = model_paths(MODEL_STYLE)
 
 
 def load_model():
+    info = json.loads(INFO.read_text())
+    if MODEL_STYLE == "luxe":
+        base = json.loads(model_paths("base")[1].read_text())
+        for key in ["socket_centre_native_x", "battery_back_shift"]:
+            assert info[key] == base[key], "luxe must keep the base layout: " + key
     data = MODEL.read_bytes()
     magic, version, length = struct.unpack_from("<III", data)
     assert (magic, version, length) == (0x46546C67, 2, len(data))
@@ -75,7 +80,6 @@ def load_model():
         c = positions[indices[i]].mean(0)
         if c[0] < -5.5 and c[2] < 75 and abs(c[1]) < 59:
             keep[i] = False
-    info = json.loads(INFO.read_text())
     return {
         "parts": pieces,
         "keep": keep,
@@ -83,4 +87,5 @@ def load_model():
         "socket_centre_x": info["socket_centre_native_x"],
         "BATTERY_BACK_SHIFT": info["battery_back_shift"],
         "approved_model_sha256": hashlib.sha256(data).hexdigest(),
+        "approved_model": info["version"],
     }

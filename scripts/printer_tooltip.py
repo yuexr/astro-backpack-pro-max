@@ -1,4 +1,4 @@
-"""A native-shaped info button for the backpack printer's output tooltip."""
+"""printer info button and tooltip toggle"""
 
 import base64
 import copy
@@ -10,7 +10,7 @@ from asset_io import HERE, append, es, gltf, prop, ps, xyz
 from blueprint import Blueprint, replace_instruction
 from game_assets import extract
 from kismet import kismet_size
-from settings import OUT, PKG
+from settings import OUT, PKG, PRINTER_ICON_SCALE
 
 BUTTON = "BPM_EyeButton"
 HIDDEN = "BPM_PrinterTooltipHidden"
@@ -76,6 +76,9 @@ def info_mesh():
     approved = json.loads((HERE.parent / "models/printer-info.json").read_text())
     glyph = approved["parts"]["info"]
     points = np.array(glyph["positions"], dtype="<f4")
+    # Resize only the flat glyph; keep button size, depth and click target.
+    centre = (points[:, 1:].min(axis=0) + points[:, 1:].max(axis=0)) / 2
+    points[:, 1:] = centre + (points[:, 1:] - centre) * PRINTER_ICON_SCALE
     faces = np.array(glyph["triangles"])
     assert len(points) <= len(arrow) and len(faces) <= len(arrow_faces)
     # The exporter uses clockwise front faces in native coordinates.
@@ -124,7 +127,7 @@ def info_mesh():
     )
 
 
-def eye_button():
+def info_button():
     document = extract(
         "Astro/Content/ControlPanels/ModularControlPanel/PanelParts/ControlPanelButton_Round"
     )
@@ -294,7 +297,7 @@ def printer_head():
     child_actor_owner = native_post["Parameters"][1]["ContextExpression"]["Variable"][
         "New"
     ]["ResolvedOwner"]
-    eye_actor = editor.ctx(
+    info_button_actor = editor.ctx(
         editor.var(BUTTON),
         editor.ex(
             "EX_InstanceVariable",
@@ -311,7 +314,7 @@ def printer_head():
         editor.call(
             editor.copy_import(source, native_post["StackNode"]),
             event,
-            eye_actor,
+            info_button_actor,
             copy.deepcopy(native_post["Parameters"][2]),
         ),
     )
@@ -457,7 +460,7 @@ def build_printer_assets():
             "Astro/Content/Mods/CompactBackpack16/PrinterEyeMesh.uasset",
         ),
         "PrinterEyeButton": (
-            eye_button(),
+            info_button(),
             "Astro/Content/Mods/CompactBackpack16/PrinterEyeButton.uasset",
         ),
         "Printhead_Backpack": (

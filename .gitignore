@@ -12,3 +12,4 @@ scripts/native-connected-parts.json
 *.blend[0-9]
 build/
 .ruff_cache/
+/CHANGELOG.md

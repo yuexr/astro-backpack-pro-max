@@ -162,6 +162,7 @@ def check_catalog_opening_events(catalog):
                 "bNoSkeletonUpdate": False,
                 "visible": True,
                 "tick_enabled": True,
+                "VisibilityBasedAnimTickOption": 3,
             },
             "CrackableActorComponent": {"fully_closed": False, "cracked": True},
             "SpindleTransition": {"playing": True, "calls": []},
@@ -268,6 +269,7 @@ def check_panel_retraction(assets):
             "bNoSkeletonUpdate": True,
             "visible": True,
             "tick_enabled": False,
+            "VisibilityBasedAnimTickOption": 3,
         },
         "CrackableActorComponent": {"fully_closed": True, "cracked": False},
         "SpindleTransition": {"playing": True, "calls": []},
@@ -278,17 +280,17 @@ def check_panel_retraction(assets):
         vm.run("BPM_ReleaseCatalogClosedPoseIfOpened", [True])
         vm.run(PREFIX + "CatalogClosed", [True])
         assert not vm.timers
-        # The close notification can precede the fully-closed state. It must
-        # queue a retry without unfreezing or changing the pose mid-transition.
+        # An early close signal schedules one attempt. A later native full-close
+        # event starts pose settling, without repeating checks in between.
         actor["SkeletalMesh"]["bNoSkeletonUpdate"] = True
         vm.run(PREFIX + "CatalogClosed", [False])
         assert actor["BPM_CatalogPosePending"]
         assert not actor["BPM_CatalogPoseStarted"]
-        assert actor["ExtendTop"] is True
         assert actor["SkeletalMesh"]["bNoSkeletonUpdate"]
-        assert "BPM_TrySetCatalogClosedPose" in vm.timers
+        assert not vm.timers["BPM_TrySetCatalogClosedPose"]["loop"]
+        vm.timers.pop("BPM_TrySetCatalogClosedPose")
         vm.run("BPM_TrySetCatalogClosedPose")
-        assert not actor["BPM_CatalogPoseStarted"]
+        assert not actor["BPM_CatalogPoseStarted"] and not vm.timers
         actor["CrackableActorComponent"]["fully_closed"] = True
         actor["ExtendTop"] = True
         actor["SkeletalMesh"]["bNoSkeletonUpdate"] = True
@@ -305,7 +307,9 @@ def check_panel_retraction(assets):
         vm.run(PREFIX + "CatalogClosed", [False])
         assert actor["ExtendTop"] is True and actor["ExtendPanel"] is False
         assert not actor["SkeletalMesh"]["bNoSkeletonUpdate"]
-        assert vm.timers == timers  # duplicate close notifications do not restart it
+        assert (
+            vm.timers == timers
+        )  # duplicate notifications reuse the same one-shot callback
         if cycle % 3 == 0:
             actor["CrackableActorComponent"]["fully_closed"] = False
             vm.run("BPM_ReleaseCatalogClosedPoseIfOpened", [True])

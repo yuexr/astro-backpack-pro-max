@@ -1,4 +1,4 @@
-"""Read mesh data and edit Unreal asset properties."""
+"""mesh data and Unreal asset helpers"""
 
 import copy
 import json

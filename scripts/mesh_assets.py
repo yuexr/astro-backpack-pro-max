@@ -1,4 +1,4 @@
-"""Build the backpack meshes using the vanilla skeleton and materials."""
+"""build the meshes on the vanilla skeleton"""
 
 import base64
 import copy
@@ -7,7 +7,7 @@ import json
 import numpy as np
 from asset_io import HERE, gltf
 from model import load_model
-from settings import OUT, PKG
+from settings import MODEL_STYLE, OUT, PKG
 
 OUT.mkdir(parents=True, exist_ok=True)
 OFF = {"position": 136048, "tangent": 246150, "uv": 319542, "index": 73944}
@@ -22,7 +22,7 @@ def source():
     )
 
 
-def private(d, label, raw):
+def rename_mesh(d, label, raw):
     d["Exports"][0]["Extras"] = base64.b64encode(raw).decode()
     d["Exports"][0]["ObjectName"] = label
     d["NameMap"] = [
@@ -35,8 +35,8 @@ def private(d, label, raw):
 
 
 def build_meshes():
-    # Use the GLB; the Blender copy is just for inspection.
-    ns = load_model()
+    # the GLB is the source; Blender is just a preview
+    model = load_model()
     _, a, ids = gltf(HERE / "exports/Models/backpack_mk2/backpack_mk2.gltf")
     root = np.flatnonzero(np.all((a["JOINTS_0"] == 0) | (a["WEIGHTS_0"] == 0), axis=1))
     p = a["POSITION"][:, [0, 2, 1]] * 100
@@ -53,24 +53,29 @@ def build_meshes():
     )
     result = {}
     report = {
-        "approved_model": "0.1.10-r1",
+        "approved_model": model["approved_model"],
         "assets": {},
         "atlas_uv": {},
-        "socket_centre_native_x": float(ns["socket_centre_x"]),
-        "battery_centre_native_x": -13.8 + ns["BATTERY_BACK_SHIFT"],
-        "approved_model_sha256": ns["approved_model_sha256"],
+        "socket_centre_native_x": float(model["socket_centre_x"]),
+        "battery_centre_native_x": -13.8 + model["BATTERY_BACK_SHIFT"],
+        "approved_model_sha256": model["approved_model_sha256"],
+        "model_style": MODEL_STYLE,
     }
-    # Keep the rear, shoulders and animated parts.
+    # keep the rear, shoulders and animated parts
     bodyids = ids.copy()
-    bodyids[~ns["keep"]] = 0
+    bodyids[~model["keep"]] = 0
     raw[OFF["index"] : OFF["index"] + ids.nbytes] = bodyids.astype("<u2").tobytes()
     # Preserve all native body UVs. The drone mount is a separate runtime mesh.
     uv = a["TEXCOORD_0"].copy()
-    result["backpack_mk2"] = private(copy.deepcopy(original), "backpack_mk2", raw)
+    result["backpack_mk2"] = rename_mesh(copy.deepcopy(original), "backpack_mk2", raw)
     np.savez(
-        OUT / "body-expected.npz", positions=p, indices=bodyids, keep=ns["keep"], uv=uv
+        OUT / "body-expected.npz",
+        positions=p,
+        indices=bodyids,
+        keep=model["keep"],
+        uv=uv,
     )
-    # Socket mesh retains all of its original UV, tangent and skeletal data.
+    # keep the socket's original UVs, tangents and bone weights
     native_groups = json.loads((HERE / "mesh-parts.json").read_text())["parts"]
     si = np.array(next(g["indices"] for g in native_groups if g["id"] == 8825))
     sv = np.unique(ids[si])
@@ -89,14 +94,18 @@ def build_meshes():
     raw = bytearray(base64.b64decode(original["Exports"][0]["Extras"]))
     raw[OFF["position"] : OFF["position"] + p.nbytes] = q.astype("<f4").tobytes()
     raw[OFF["index"] : OFF["index"] + ids.nbytes] = newids.astype("<u2").tobytes()
-    result["backpack_socket"] = private(copy.deepcopy(original), "backpack_socket", raw)
+    result["backpack_socket"] = rename_mesh(
+        copy.deepcopy(original), "backpack_socket", raw
+    )
     (OUT / "socket-source.json").write_text(json.dumps(group, indent=2))
     # Sample the vanilla atlas so colours follow the player palette.
-    palette = {name: binding["uv"] for name, binding in ns["PALETTE_BINDINGS"].items()}
+    palette = {
+        name: binding["uv"] for name, binding in model["PALETTE_BINDINGS"].items()
+    }
     report["atlas_uv"] = palette
-    report["palette_sources"] = ns["PALETTE_BINDINGS"]
-    pieces = ns["parts"]
-    # Split at the native buffer limits without cutting up components.
+    report["palette_sources"] = model["PALETTE_BINDINGS"]
+    pieces = model["parts"]
+    # split between parts if the native mesh buffer fills up
     batches = []
     batch = []
     nv = nt = 0
@@ -111,6 +120,8 @@ def build_meshes():
         nt += len(piece["f"])
     if batch:
         batches.append(batch)
+    if MODEL_STYLE == "luxe":
+        assert len(batches) == 1, "luxe needs to fit the same front1 component as base"
     for number, batch in enumerate(batches, 1):
         label = f"front{number}"
         verts = []
@@ -160,7 +171,7 @@ def build_meshes():
             ("index", indices.astype("<u2")),
         ]:
             raw[OFF[key] : OFF[key] + array.nbytes] = array.tobytes()
-        result[label] = private(copy.deepcopy(original), label, raw)
+        result[label] = rename_mesh(copy.deepcopy(original), label, raw)
         np.savez(
             OUT / (label + "-expected.npz"),
             positions=pos,
@@ -176,8 +187,7 @@ def build_meshes():
             "materials": {x["name"]: x["mat"] for x in batch},
         }
     report["front_components"] = list(report["assets"])
-    # Copy the actual native drone-slot geometry, with its own atlas coordinates
-    # remapped to native backpack socket samples. Shape and normals stay native.
+    # use the vanilla drone socket mesh with backpack palette UVs
     _, da, di = gltf(HERE / "exports/Slots/Content/new/slot_t1b_i.gltf")
     dv = da["POSITION"][:, [0, 2, 1]] * 100
     du = da["TEXCOORD_0"]
@@ -210,7 +220,7 @@ def build_meshes():
         ("index", drone_indices.astype("<u2")),
     ]:
         raw[OFF[key] : OFF[key] + array.nbytes] = array.tobytes()
-    result["drone_socket"] = private(copy.deepcopy(original), "drone_socket", raw)
+    result["drone_socket"] = rename_mesh(copy.deepcopy(original), "drone_socket", raw)
     np.savez(
         OUT / "drone-expected.npz",
         positions=pos,
@@ -228,7 +238,7 @@ def build_meshes():
     }
 
     report["all_animated_triangles_preserved"] = bool(
-        ns["keep"][~np.all(np.isin(ids, root), axis=1)].all()
+        model["keep"][~np.all(np.isin(ids, root), axis=1)].all()
     )
     assert report["all_animated_triangles_preserved"]
     (OUT / "geometry-report.json").write_text(json.dumps(report, indent=2))

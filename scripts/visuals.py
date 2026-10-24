@@ -314,8 +314,13 @@ def add_visual_components(d, front_parts, corpse=False):
     cls["FuncMap"].append([name("CB_ShareSocketMaterial"), fn_id])
     cls["Children"].insert(0, fn_id)
     cls["CreateBeforeSerializationDependencies"].append(fn_id)
-    for key in ["ReceiveBeginPlay", "ReceiveTick"]:
+    for key in ["ReceiveBeginPlay"]:
         wrapper = next(e for e in d["Exports"] if e["ObjectName"] == key)
-        wrapper["ScriptBytecode"].insert(0, call(fn_id, local=True))
+        index = next(
+            i
+            for i, expr in enumerate(wrapper["ScriptBytecode"])
+            if expr["$type"].split(".")[-1].split(",")[0] == "EX_Return"
+        )
+        wrapper["ScriptBytecode"].insert(index, call(fn_id, local=True))
         wrapper["ScriptBytecodeSize"] += 10
         wrapper["CreateBeforeSerializationDependencies"].append(fn_id)

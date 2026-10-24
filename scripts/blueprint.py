@@ -1,4 +1,4 @@
-"""Small helpers for adding Blueprint fields, imports and functions."""
+"""helpers for editing Blueprints"""
 
 import base64
 import copy
@@ -119,7 +119,7 @@ class Blueprint:
             self.ex("EX_Return", ReturnExpression=self.ex("EX_Nothing")),
             self.ex("EX_EndOfScript"),
         ]
-        # Use the caller's normal FunctionExport schema; the new function has no parameters.
+        # start with a function from this asset; add parameters separately if needed
         source = self.function_template or next(
             e for e in self.d["Exports"] if "FunctionExport" in e["$type"]
         )
@@ -192,7 +192,7 @@ class Blueprint:
 
 
 def replace_instruction(function, index, replacement):
-    """Replace one instruction and move the following absolute branch targets."""
+    """Replace an instruction and adjust the jumps after it."""
     code = function["ScriptBytecode"]
     assert sum(map(kismet_size, code)) == function["ScriptBytecodeSize"]
     old_end = sum(map(kismet_size, code[: index + 1]))

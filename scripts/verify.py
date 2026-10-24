@@ -10,7 +10,14 @@ import subprocess
 import numpy as np
 from asset_io import HERE, es, gltf, prop, ps, xyz
 from game_assets import ENV, GUI, REPAK, UMODEL
-from settings import OUT, PAK_NAME, PANEL_RETRACTION_FIX, VERSION
+from settings import (
+    AUTO_ARM_BLOCKER,
+    MODEL_STYLE,
+    OUT,
+    PAK_NAME,
+    PANEL_RETRACTION_FIX,
+    VERSION,
+)
 
 STAGE = OUT / "staging"
 
@@ -142,9 +149,14 @@ for label, path, corpse in [
             assert all(size(x) == 45 for x in extra)
             arrays[0]["Elements"] = arrays[0]["Elements"][:8]
             added = 360
-        if n in ["ReceiveBeginPlay", "ReceiveTick"]:
-            assert type_(actual.pop(0)) == "EX_LocalFinalFunction"
-            added = 10
+        if n == "ReceiveBeginPlay":
+            count = 1 if corpse else 2
+            for _ in range(count):
+                index = next(
+                    i for i, expr in enumerate(actual) if type_(expr) == "EX_Return"
+                )
+                assert type_(actual.pop(index - 1)) == "EX_LocalFinalFunction"
+            added = 10 * count
         if n == "CLIENT Printer View":
             from kismet import kismet_size
 
@@ -242,7 +254,11 @@ for label, path, corpse in [
             resolved.append(x["ContextExpression"]["Parameters"][0]["Value"])
     assert resolved == names, (label, resolved)
     resource_order[label] = resolved
-    assert ex["Slots_GEN_VARIABLE"]["Data"] == old["Slots_GEN_VARIABLE"]["Data"]
+    expected_slots = copy.deepcopy(old["Slots_GEN_VARIABLE"]["Data"])
+    if AUTO_ARM_BLOCKER and not corpse:
+        for slot in ps({"Data": expected_slots})["Slots"]["Value"]:
+            ps({"Data": slot["Value"]})["bAcceptsInputItems"]["Value"] = False
+    assert ex["Slots_GEN_VARIABLE"]["Data"] == expected_slots
     # All auxiliary/template slot data stays byte-for-byte equivalent to vanilla.
     for component in old:
         if component.endswith("_GEN_VARIABLE") and any(
@@ -340,7 +356,9 @@ assert np.all(distances.min(1) < 1e-4) and len(set(distances.argmin(1))) == 16
 umodel = UMODEL
 original, oa, oi = gltf(HERE / "exports/Models/backpack_mk2/backpack_mk2.gltf")
 # Compare cooked triangles with the model file.
-approved_path = HERE.parent / "models/backpack-pro-max.glb"
+from model import MODEL
+
+approved_path = MODEL
 blob = approved_path.read_bytes()
 jsize = struct.unpack_from("<I", blob, 12)[0]
 approved = json.loads(blob[20 : 20 + jsize])
@@ -402,7 +420,7 @@ for label in ["backpack_mk2", "backpack_socket", "drone_socket"] + front_labels:
             reference,
             atol=3e-5,
             rtol=0,
-        ), "Approved revision-1 model changed"
+        ), "cooked mesh doesn't match the selected model"
         assert np.array_equal(
             a["TEXCOORD_0"][indices[active]], expected["uv"][wanted[active]]
         )
@@ -463,12 +481,16 @@ expected = sorted(
 )
 assert (
     sorted(listing) == expected
-    and len(listing) == 2 * (10 + len(front_labels) + int(PANEL_RETRACTION_FIX)) + 1
+    and len(listing)
+    == 2
+    * (11 + len(front_labels) + int(PANEL_RETRACTION_FIX) + 2 * int(AUTO_ARM_BLOCKER))
+    + 1
 )
 for member in listing:
     data = subprocess.check_output([str(REPAK), "get", str(pak), member])
     assert data == (STAGE / member).read_bytes(), member
 report = json.loads((OUT / "build-report.json").read_text())
+assert report["model_style"] == MODEL_STYLE
 assert hashlib.sha256(pak.read_bytes()).hexdigest() == report["pak_sha256"]
 report["offline_checks"] = [
     f"{len(assets)} assets reparsed including function trailers and dependencies",
@@ -478,7 +500,7 @@ report["offline_checks"] = [
     "matching live and corpse attachment positions",
     "original control and printer transforms retained",
     "material helper bytecode and offsets verified",
-    "cooked geometry matches approved 0.1.10-r1 GLB; original body UVs preserved",
+    f"cooked geometry matches the selected {MODEL_STYLE} model; original body UVs unchanged",
     "new visible meshes root weighted and collision disabled",
     "all 2380 animated native triangles preserved",
     "actual native drone mount shape and normals retained; its rim uses main socket palette UV and material",
@@ -499,5 +521,17 @@ from verify_preferences import check_preferences
 report["offline_checks"].extend(check_preferences(assets))
 report["printer_preference_verified"] = True
 report["printer_tooltip_verified"] = True
+from verify_auto_arm import check_auto_arm
+
+report["offline_checks"].extend(check_auto_arm(assets))
+report["auto_arm_verified"] = AUTO_ARM_BLOCKER
+from verify_visual_events import check_visual_events
+
+report["offline_checks"].extend(check_visual_events(assets, geometry))
+report["event_visuals_verified"] = True
+from verify_build_options import check_build_options
+
+report["offline_checks"].extend(check_build_options())
+report["build_options_verified"] = True
 (OUT / "build-report.json").write_text(json.dumps(report, indent=2))
-print(f"{VERSION}: {len(report['offline_checks'])} build checks passed.")
+print(f"{VERSION}: {len(report['offline_checks'])} offline checks passed.")

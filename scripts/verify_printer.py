@@ -1,4 +1,4 @@
-"""Check the eye button, local tooltip toggle and native printer visuals."""
+"""check the info button, tooltip toggle and printer meshes"""
 
 import copy
 import json
@@ -9,7 +9,7 @@ from asset_io import HERE, es, gltf, ps, xyz
 from game_assets import UMODEL
 from kismet import kismet_size, op_type
 from printer_tooltip import BUTTON, GET_HIDDEN, HIDDEN, TOGGLE
-from settings import OUT
+from settings import OUT, PRINTER_ICON_SCALE
 from verify_behaviors import VM
 
 
@@ -401,6 +401,14 @@ def check_printer(assets):
             ~np.any(np.isin(glyph_triangles, casing), axis=1)
         ]
         assert len(glyph_triangles) == len(approved["parts"][part]["triangles"])
+        source_points = np.array(approved["parts"][part]["positions"])
+        cooked_points = expected["positions"][np.unique(glyph_triangles)]
+        assert np.allclose(cooked_points[:, 0], source_points[0, 0])
+        assert np.allclose(
+            np.ptp(cooked_points[:, 1:], axis=0),
+            np.ptp(source_points[:, 1:], axis=0) * PRINTER_ICON_SCALE,
+            atol=2e-6,
+        )
     return [
         "eye button uses native left sound when hiding and right when showing; no recipe navigation",
         "tooltip starts visible; its hide setting is local and not replicated",

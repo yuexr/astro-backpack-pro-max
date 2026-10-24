@@ -16,12 +16,23 @@ class VM:
         self.d = asset
         self.actor = actor
         self.timers = {}
+        cls = next(e for e in asset["Exports"] if "ClassExport" in e["$type"])
+        for p in cls.get("LoadedProperties", []):
+            if p["Name"].startswith("BPM_") and (
+                "FBoolProperty" in p["$type"] or "FByteProperty" in p["$type"]
+            ):
+                actor.setdefault(
+                    p["Name"], False if "FBoolProperty" in p["$type"] else 0
+                )
 
     def name(self, ptr):
         return ptr["New"]["Path"][0]
 
     def set(self, expr, value, obj, local):
         t = op_type(expr)
+        if t == "EX_LocalVariable":
+            local[self.name(expr["Variable"])] = value
+            return
         if t == "EX_InstanceVariable":
             n = self.name(expr["Variable"])
             (self.actor if n in self.actor else obj)[n] = value
@@ -53,8 +64,11 @@ class VM:
             return self.actor
         if t in ["EX_IntZero", "EX_Nothing"]:
             return 0
-        if t in ["EX_StringConst", "EX_FloatConst"]:
+        if t in ["EX_StringConst", "EX_FloatConst", "EX_ByteConst"]:
             return x["Value"]
+        if t == "EX_Let":
+            self.set(x["Variable"], self.eval(x["Expression"], obj, local), obj, local)
+            return
         if t == "EX_Context":
             return self.eval(
                 x["ContextExpression"],
@@ -69,7 +83,7 @@ class VM:
                 local,
             )
             return
-        if t in ["EX_FinalFunction", "EX_LocalFinalFunction"]:
+        if t in ["EX_FinalFunction", "EX_LocalFinalFunction", "EX_CallMath"]:
             args = [self.eval(a, obj, local) for a in x["Parameters"]]
             node = x["StackNode"]
             if node > 0:
@@ -77,6 +91,8 @@ class VM:
             name = self.d["Imports"][-node - 1]["ObjectName"]
             if name == "IsValid":
                 return args[0] is not None
+            if name == "Not_PreBool":
+                return not args[0]
             if name == "GetFullyClosed":
                 return obj["fully_closed"]
             if name == "IsVisible":
@@ -86,6 +102,8 @@ class VM:
             if name == "SetComponentTickEnabled":
                 obj["tick_enabled"] = args[0]
                 return
+            if name == "IsComponentTickEnabled":
+                return obj["tick_enabled"]
             if name == "K2_SetTimer":
                 self.timers[args[1]] = {"seconds": args[2], "loop": args[3]}
                 return
@@ -198,96 +216,9 @@ def check_behaviors(assets, geometry):
         if n.startswith("BPM_"):
             assert sum(map(kismet_size, e["ScriptBytecode"])) == e["ScriptBytecodeSize"]
 
-    def fresh(visible=False, rendered=False):
-        return {
-            "BPM_CatalogPosePending": True,
-            "BPM_CatalogPoseStarted": False,
-            "rendered": rendered,
-            "ExtendTop": True,
-            "ExtendPanel": False,
-            "SkeletalMesh": {
-                "bNoSkeletonUpdate": True,
-                "visible": visible,
-                "tick_enabled": False,
-            },
-            "CrackableActorComponent": {"fully_closed": True},
-        }
+    from verify_catalog_events import check_catalog_once
 
-    # Loading can last arbitrarily long: there is no finish deadline while the
-    # active catalog has not actually appeared in a rendered frame.
-    actor = fresh()
-    vm = VM(d, actor)
-    vm.run("BPM_StartCatalogClosedPose")
-    assert set(vm.timers) == {"BPM_TrySetCatalogClosedPose"}
-    retry = vm.timers["BPM_TrySetCatalogClosedPose"]
-    assert retry["loop"] and abs(retry["seconds"] - 0.05) < 1e-7
-    for _ in range(200):
-        vm.run("BPM_TrySetCatalogClosedPose")
-    assert actor["BPM_CatalogPosePending"] and not actor["BPM_CatalogPoseStarted"]
-    assert actor["SkeletalMesh"]["bNoSkeletonUpdate"]
-    actor["SkeletalMesh"]["visible"] = True
-    vm.run("BPM_TrySetCatalogClosedPose")
-    assert (
-        not actor["BPM_CatalogPoseStarted"]
-        and "BPM_FreezeCatalogClosedPose" not in vm.timers
-    )
-    actor["rendered"] = True
-    vm.run("BPM_TrySetCatalogClosedPose")
-    assert (
-        actor["BPM_CatalogPoseStarted"]
-        and not actor["SkeletalMesh"]["bNoSkeletonUpdate"]
-    )
-    assert actor["SkeletalMesh"]["tick_enabled"]
-    assert actor["ExtendTop"] is True and actor["ExtendPanel"] is False
-    assert vm.timers == {"BPM_FreezeCatalogClosedPose": {"seconds": 1.0, "loop": False}}
-    actor["SkeletalMesh"]["bNoSkeletonUpdate"] = True
-    actor["ExtendTop"] = False  # a stale opening event must not define the closed pose
-    actor["ExtendPanel"] = True
-    vm.run("BPM_KeepCatalogClosedPoseUpdating")
-    assert not actor["SkeletalMesh"]["bNoSkeletonUpdate"]
-    assert actor["ExtendTop"] is True and actor["ExtendPanel"] is False
-    vm.run("BPM_ReleaseCatalogClosedPoseIfOpened", [False])
-    assert vm.timers
-    vm.run("BPM_FreezeCatalogClosedPose")
-    assert actor["ExtendTop"] is True and actor["ExtendPanel"] is False
-    assert (
-        actor["SkeletalMesh"]["bNoSkeletonUpdate"]
-        and not actor["BPM_CatalogPosePending"]
-    )
-    actor["SkeletalMesh"]["bNoSkeletonUpdate"] = True
-    vm.run("BPM_KeepCatalogClosedPoseUpdating")
-    assert actor["SkeletalMesh"]["bNoSkeletonUpdate"]
-    # Explicit initialization does not rely on a derived Blueprint inheriting
-    # the new field's CDO default value.
-    actor = fresh(True, True)
-    actor["BPM_CatalogPosePending"] = False
-    vm = VM(d, actor)
-    vm.run("BPM_StartCatalogClosedPose")
-    assert actor["BPM_CatalogPosePending"] and actor["BPM_CatalogPoseStarted"]
-    # Opening before a first render or during warmup cancels both timers and
-    # leaves the original catalog controls/animations in charge.
-    for visible, rendered in [(False, False), (True, True)]:
-        actor = fresh(visible, rendered)
-        vm = VM(d, actor)
-        vm.run("BPM_StartCatalogClosedPose")
-        vm.run("BPM_ReleaseCatalogClosedPoseIfOpened", [True])
-        assert not vm.timers and not actor["BPM_CatalogPosePending"]
-        assert actor["ExtendTop"] is True
-        actor["SkeletalMesh"]["bNoSkeletonUpdate"] = True
-        vm.run("BPM_KeepCatalogClosedPoseUpdating")
-        assert actor["SkeletalMesh"]["bNoSkeletonUpdate"]
-    actor = fresh(True, True)
-    vm = VM(d, actor)
-    vm.run("BPM_StartCatalogClosedPose")
-    actor["CrackableActorComponent"]["fully_closed"] = False
-    vm.run("BPM_FreezeCatalogClosedPose")
-    assert not actor["SkeletalMesh"]["bNoSkeletonUpdate"]
-    actor = fresh()
-    actor["SkeletalMesh"] = None
-    vm = VM(d, actor)
-    vm.run("BPM_StartCatalogClosedPose")
-    vm.run("BPM_TrySetCatalogClosedPose")
-    vm.run("BPM_FreezeCatalogClosedPose")
+    check_catalog_once(d)
 
     # Retain the original AnimInstance and its montage delegate bindings.
     # Both native closed-state inputs are held while the pose initializes.
@@ -310,15 +241,15 @@ def check_behaviors(assets, geometry):
 
     newdoc, newbin = read_glb(MODEL)
     reference = json.loads(INFO.read_text())
-    # Keep the base model and its palette bindings unchanged.
+    # each model has its own approved hashes
     assert (
         hashlib.sha256(newbin).hexdigest() == reference["approved_base_binary_sha256"]
-    ), "Approved base geometry or normals changed"
+    ), "approved model geometry or normals changed"
     canonical = json.dumps(newdoc, sort_keys=True, separators=(",", ":")).encode()
     assert (
         hashlib.sha256(canonical).hexdigest()
         == reference["approved_model_document_sha256"]
-    ), "Unrequested model changes"
+    ), "model doesn't match its approval file"
     trim = next(i for i, m in enumerate(newdoc["materials"]) if m["name"] == "trim")
     assert (
         next(m for m in newdoc["meshes"] if m["name"] == "LowerBatteryAccent")[
@@ -344,5 +275,5 @@ def check_behaviors(assets, geometry):
         "Creative-only visibility helper tested through mode changes and real mesh bounds parent verified",
         "native catalog behavior preserved except startup hooks; inherited by Creative catalog",
         "startup initializes the native handle-out, controls-flat pose; early opening cancels initialization and leaves native animation in charge",
-        "base model and palette bindings unchanged",
+        "selected model and palette bindings match their approval file",
     ]

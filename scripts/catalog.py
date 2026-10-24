@@ -1,294 +1,237 @@
-"""Evaluate the native closed catalog pose before freezing its skeleton."""
+"""let the catalog finish closing, then freeze its pose"""
 
-import base64
 import copy
 
-from asset_io import append as append_export
-from asset_io import name as asset_name
-from asset_io import prop
+from asset_io import es
+from blueprint import Blueprint
 from game_assets import extract
 from kismet import kismet_size, op_type
 
+PENDING = "BPM_CatalogPosePending"
+STARTED = "BPM_CatalogPoseStarted"
+OVERRIDE = "BPM_CatalogTickOverride"
+SAVED = "BPM_CatalogSavedTickOption"
+SAVED_TICK = "BPM_CatalogSavedTickEnabled"
+TRY = "BPM_TrySetCatalogClosedPose"
+FREEZE = "BPM_FreezeCatalogClosedPose"
+
 
 def patch_catalog_startup():
-    d = extract("Astro/Content/Items/Catalog/BackpackCatalog")
-
-    def name(n):
-        return asset_name(d, n)
-
-    def imp(n, outer, kind="Class", pkg="/Script/CoreUObject"):
-        for i, x in enumerate(d["Imports"]):
-            if (x["ObjectName"], x["OuterIndex"], x["ClassName"]) == (n, outer, kind):
-                return -i - 1
-        d["Imports"].append(
-            {
-                "$type": "UAssetAPI.Import, UAssetAPI",
-                "ObjectName": name(n),
-                "OuterIndex": outer,
-                "ClassPackage": name(pkg),
-                "ClassName": name(kind),
-                "PackageName": None,
-                "bImportOptional": False,
-            }
-        )
-        return -len(d["Imports"])
-
-    def append(e):
-        return append_export(d, e)
-
-    def ex(t, **kw):
-        return {
-            "$type": "UAssetAPI.Kismet.Bytecode.Expressions." + t + ", UAssetAPI",
-            **kw,
-        }
-
-    def ptr(owner, n=None):
-        return {
-            "$type": "UAssetAPI.Kismet.Bytecode.KismetPropertyPointer, UAssetAPI",
-            "New": {
-                "$type": "UAssetAPI.UnrealTypes.FFieldPath, UAssetAPI",
-                "Path": [name(n)] if n else [],
-                "ResolvedOwner": owner,
-            },
-        }
-
-    def var(n, owner=None):
-        return ex(
-            "EX_InstanceVariable", Variable=ptr(cid if owner is None else owner, n)
-        )
-
-    def call(f, *args, local=False):
-        return ex(
-            "EX_LocalFinalFunction" if local else "EX_FinalFunction",
-            StackNode=f,
-            Parameters=list(args),
-        )
-
-    def ctx(obj, expr):
-        return ex(
-            "EX_Context",
-            ObjectExpression=obj,
-            Offset=kismet_size(expr),
-            PropertyType=0,
-            RValuePointer=ptr(0),
-            ContextExpression=expr,
-        )
-
-    def assign(obj, val):
-        return ex("EX_LetBool", VariableExpression=obj, AssignmentExpression=val)
-
-    def guard(test):
-        return ex("EX_JumpIfNot", CodeOffset=0, BooleanExpression=test)
-
-    cls = next(e for e in d["Exports"] if e["ObjectName"] == "BackpackCatalog_C")
-    cid = d["Exports"].index(cls) + 1
-    cdo = next(
-        e for e in d["Exports"] if e["ObjectName"] == "Default__BackpackCatalog_C"
+    document = extract("Astro/Content/Items/Catalog/BackpackCatalog")
+    editor = Blueprint(document)
+    for field in [PENDING, STARTED, OVERRIDE, SAVED_TICK]:
+        editor.bool_field(field)
+    byte = copy.deepcopy(
+        next(p for p in editor.cls["LoadedProperties"] if "FByteProperty" in p["$type"])
     )
-    field = copy.deepcopy(
-        next(p for p in cls["LoadedProperties"] if p["Name"] == "ExtendPanel")
+    byte.update(
+        Name=editor.name(SAVED),
+        Enum=0,
+        PropertyFlags="CPF_None",
+        RepIndex=0,
+        RepNotifyFunc="None",
     )
-    field.update(Name=name("BPM_CatalogPosePending"), PropertyFlags="CPF_None")
-    cls["LoadedProperties"].append(field)
-    cdo["Data"].append(prop(d, "Bool", "BPM_CatalogPosePending", True))
-    started_field = copy.deepcopy(field)
-    started_field["Name"] = name("BPM_CatalogPoseStarted")
-    cls["LoadedProperties"].append(started_field)
-    cdo["Data"].append(prop(d, "Bool", "BPM_CatalogPoseStarted", False))
-    eng = imp("/Script/Engine", 0, "Package")
-    astro = imp("/Script/Astro", 0, "Package")
-    skel = imp("SkeletalMeshComponent", eng)
-    control = imp("ControlPanel", astro)
-    crack = imp("CrackableActorComponent", astro)
-    system = imp("KismetSystemLibrary", eng)
-    valid = imp("IsValid", system, "Function")
-    set_timer = imp("K2_SetTimer", system, "Function")
-    clear_timer = imp("K2_ClearTimer", system, "Function")
-    fully_closed = imp("GetFullyClosed", crack, "Function")
-    actor_class = imp("Actor", eng)
-    recent = imp("WasRecentlyRendered", actor_class, "Function")
-    scene = imp("SceneComponent", eng)
-    visible = imp("IsVisible", scene, "Function")
-    actor_component = imp("ActorComponent", eng)
-    tick = imp("SetComponentTickEnabled", actor_component, "Function")
-    mesh = lambda: var("SkeletalMesh", control)
-    component = lambda: var("CrackableActorComponent", control)
-    freeze = lambda state: assign(
-        ctx(mesh(), var("bNoSkeletonUpdate", skel)),
-        ex("EX_True" if state else "EX_False"),
+    editor.cls["LoadedProperties"].append(byte)
+    engine = editor.imp("/Script/Engine", kind="Package")
+    astro = editor.imp("/Script/Astro", kind="Package")
+    control = editor.imp("ControlPanel", astro)
+    crack = editor.imp("CrackableActorComponent", astro)
+    skel = editor.imp("SkeletalMeshComponent", engine)
+    skinned = editor.imp("SkinnedMeshComponent", engine)
+    system = editor.imp("KismetSystemLibrary", engine)
+    maths = editor.imp("KismetMathLibrary", engine)
+    actor_component = editor.imp("ActorComponent", engine)
+    valid = editor.imp("IsValid", system, "Function")
+    negate = editor.imp("Not_PreBool", maths, "Function")
+    closed = editor.imp("GetFullyClosed", crack, "Function")
+    set_timer = editor.imp("K2_SetTimer", system, "Function")
+    clear_timer = editor.imp("K2_ClearTimer", system, "Function")
+    tick = editor.imp("SetComponentTickEnabled", actor_component, "Function")
+    tick_enabled = editor.imp("IsComponentTickEnabled", actor_component, "Function")
+    mesh = editor.ex(
+        "EX_InstanceVariable", Variable=editor.ptr("SkeletalMesh", control)
     )
-    active = lambda: var("BPM_CatalogPosePending")
-    started = lambda: var("BPM_CatalogPoseStarted")
-    stop_poll = lambda: call(
-        clear_timer,
-        ex("EX_Self"),
-        ex("EX_StringConst", Value="BPM_TrySetCatalogClosedPose"),
+    component = editor.ex(
+        "EX_InstanceVariable", Variable=editor.ptr("CrackableActorComponent", control)
     )
-    begin = next(e for e in d["Exports"] if e["ObjectName"] == "ReceiveBeginPlay")
-    closed_handler = next(
-        e
-        for e in d["Exports"]
-        if e["ObjectName"]
-        == "BndEvt__CrackableActorComponent_K2Node_ComponentBoundEvent_0_OnCrackedStateChanged__DelegateSignature"
-    )
-    opened_handler = next(
-        e
-        for e in d["Exports"]
-        if e["ObjectName"]
-        == "BndEvt__CrackableActorComponent_K2Node_ComponentBoundEvent_1_OnCrackedStateChanged__DelegateSignature"
+    option = editor.ctx(
+        mesh,
+        editor.ex(
+            "EX_InstanceVariable",
+            Variable=editor.ptr("VisibilityBasedAnimTickOption", skinned),
+        ),
     )
 
-    def function(n, make, param=False):
-        fn = copy.deepcopy(begin)
-        fid = len(d["Exports"]) + 1
-        fn.update(
-            ObjectName=name(n),
-            SerialSize=0,
-            SerialOffset=0,
-            SuperStruct=0,
-            SuperIndex=0,
-            LoadedProperties=[],
-            FunctionFlags="FUNC_Public, FUNC_BlueprintCallable",
+    def let(variable, value, field, owner):
+        return editor.ex(
+            "EX_Let",
+            Value=editor.ptr(field, owner),
+            Variable=variable,
+            Expression=value,
         )
-        if param:
-            f = copy.deepcopy(
-                next(
-                    p
-                    for p in opened_handler["LoadedProperties"]
-                    if p["Name"] == "bIsCracked"
-                )
-            )
-            f["Name"] = name("Opened")
-            fn["LoadedProperties"] = [f]
-        body = make(fid)
-        end = sum(map(kismet_size, body))
-        for x in body:
-            if "CodeOffset" in x:
-                x["CodeOffset"] = end
-        body.extend(
-            [ex("EX_Return", ReturnExpression=ex("EX_Nothing")), ex("EX_EndOfScript")]
-        )
-        fn.update(ScriptBytecode=body, ScriptBytecodeSize=sum(map(kismet_size, body)))
-        assert base64.b64decode(fn["Extras"]) == b"\0" * 8
-        fn["CreateBeforeSerializationDependencies"] = [
-            cid,
-            valid,
-            set_timer,
+
+    def timer_clear(callback):
+        return editor.call(
             clear_timer,
-            fully_closed,
-            control,
-            skel,
-            recent,
-            visible,
-            tick,
-        ]
-        fn["SerializationBeforeSerializationDependencies"] = []
-        fn["CreateBeforeCreateDependencies"] = [cid]
-        assert append(fn) == fid
-        cls["FuncMap"].append([name(n), fid])
-        cls["Children"].insert(0, fid)
-        cls["CreateBeforeSerializationDependencies"].append(fid)
-        return fid
+            editor.ex("EX_Self"),
+            editor.ex("EX_StringConst", Value=editor.name(callback)),
+        )
 
-    keep = function(
-        "BPM_KeepCatalogClosedPoseUpdating",
-        lambda _: [
-            guard(active()),
-            guard(started()),
-            guard(call(valid, mesh())),
-            # Vanilla closes with the handle extended and the controls flat.
-            # The unevaluated startup mesh can still show the opening pose.
-            assign(var("ExtendTop"), ex("EX_True")),
-            assign(var("ExtendPanel"), ex("EX_False")),
-            freeze(False),
+    def timer(callback, seconds):
+        # one-shot only; these callbacks never restart themselves
+        return editor.call(
+            set_timer,
+            editor.ex("EX_Self"),
+            editor.ex("EX_StringConst", Value=editor.name(callback)),
+            editor.ex("EX_FloatConst", Value=seconds),
+            editor.ex("EX_False"),
+            editor.ex("EX_FloatConst", Value=0.0),
+            editor.ex("EX_FloatConst", Value=0.0),
+        )
+
+    def freeze(enabled):
+        return editor.ex(
+            "EX_LetBool",
+            VariableExpression=editor.ctx(
+                mesh,
+                editor.ex(
+                    "EX_InstanceVariable",
+                    Variable=editor.ptr("bNoSkeletonUpdate", skel),
+                ),
+            ),
+            AssignmentExpression=editor.ex("EX_True" if enabled else "EX_False"),
+        )
+
+    restore = editor.function(
+        "BPM_RestoreCatalogTickOption",
+        [
+            editor.guard(editor.var(OVERRIDE)),
+            editor.guard(editor.call(valid, mesh)),
+            let(option, editor.var(SAVED), "VisibilityBasedAnimTickOption", skinned),
+            editor.ctx(mesh, editor.call(tick, editor.var(SAVED_TICK))),
+            editor.assign_bool(OVERRIDE, editor.ex("EX_False")),
         ],
     )
-    function(
-        "BPM_FreezeCatalogClosedPose",
-        lambda _: [
-            assign(active(), ex("EX_False")),
-            stop_poll(),
-            guard(call(valid, component())),
-            guard(ctx(component(), call(fully_closed))),
-            guard(call(valid, mesh())),
+    capture = editor.function(
+        "BPM_CaptureCatalogTickOption",
+        [
+            editor.guard(editor.call(negate, editor.var(OVERRIDE), math=True)),
+            editor.guard(editor.call(valid, mesh)),
+            let(editor.var(SAVED), option, SAVED, editor.cid),
+            editor.assign_bool(SAVED_TICK, editor.ctx(mesh, editor.call(tick_enabled))),
+            editor.assign_bool(OVERRIDE, editor.ex("EX_True")),
+        ],
+    )
+    keep = editor.function(
+        "BPM_KeepCatalogClosedPoseUpdating",
+        [
+            editor.guard(editor.var(PENDING)),
+            editor.guard(editor.var(STARTED)),
+            editor.guard(editor.call(valid, mesh)),
+            editor.assign_bool("ExtendTop", editor.ex("EX_True")),
+            editor.assign_bool("ExtendPanel", editor.ex("EX_False")),
+            # the pose still needs to update when the catalog is off-screen
+            let(
+                option,
+                editor.ex("EX_ByteConst", Value=0),
+                "VisibilityBasedAnimTickOption",
+                skinned,
+            ),
+            freeze(False),
+            editor.ctx(mesh, editor.call(tick, editor.ex("EX_True"))),
+        ],
+    )
+    editor.function(
+        FREEZE,
+        [
+            timer_clear(TRY),
+            timer_clear(FREEZE),
+            editor.assign_bool(PENDING, editor.ex("EX_False")),
+            editor.assign_bool(STARTED, editor.ex("EX_False")),
+            editor.call(restore, local=True),
+            editor.guard(editor.call(valid, component)),
+            editor.guard(editor.ctx(component, editor.call(closed))),
+            editor.guard(editor.call(valid, mesh)),
             freeze(True),
         ],
     )
-    attempt = function(
-        "BPM_TrySetCatalogClosedPose",
-        lambda _: [
-            guard(active()),
-            guard(call(valid, mesh())),
-            guard(ctx(mesh(), call(visible))),
-            guard(call(recent, ex("EX_FloatConst", Value=0.25))),
-            guard(call(valid, component())),
-            guard(ctx(component(), call(fully_closed))),
-            assign(started(), ex("EX_True")),
-            call(keep, local=True),
-            ctx(mesh(), call(tick, ex("EX_True"))),
-            stop_poll(),
-            call(
-                set_timer,
-                ex("EX_Self"),
-                ex("EX_StringConst", Value="BPM_FreezeCatalogClosedPose"),
-                ex("EX_FloatConst", Value=1.0),
-                ex("EX_False"),
-                ex("EX_FloatConst", Value=0.0),
-                ex("EX_FloatConst", Value=0.0),
-            ),
+    attempt = editor.function(
+        TRY,
+        [
+            editor.guard(editor.var(PENDING)),
+            editor.guard(editor.call(valid, mesh)),
+            editor.guard(editor.call(valid, component)),
+            editor.guard(editor.ctx(component, editor.call(closed))),
+            editor.assign_bool(STARTED, editor.ex("EX_True")),
+            editor.call(capture, local=True),
+            editor.call(keep, local=True),
+            timer_clear(TRY),
+            timer(FREEZE, 1.0),
         ],
     )
-    start = function(
+    start = editor.function(
         "BPM_StartCatalogClosedPose",
-        lambda _: [
-            assign(active(), ex("EX_True")),
-            assign(started(), ex("EX_False")),
-            call(
-                set_timer,
-                ex("EX_Self"),
-                ex("EX_StringConst", Value="BPM_TrySetCatalogClosedPose"),
-                # Begin promptly after the native close transition finishes.
-                ex("EX_FloatConst", Value=0.05),
-                ex("EX_True"),
-                ex("EX_FloatConst", Value=0.0),
-                ex("EX_FloatConst", Value=0.0),
-            ),
-            call(attempt, local=True),
+        [
+            editor.assign_bool(PENDING, editor.ex("EX_True")),
+            editor.assign_bool(STARTED, editor.ex("EX_False")),
+            # this event can arrive before vanilla finishes changing state
+            # try once next frame; the fully-closed event can try again later
+            timer(TRY, 0.01),
+            editor.call(attempt, local=True),
         ],
     )
-    cancel = function(
+    fid = len(document["Exports"]) + 1
+    param = copy.deepcopy(
+        next(
+            p
+            for p in es(document)[
+                "BndEvt__CrackableActorComponent_K2Node_ComponentBoundEvent_1_OnCrackedStateChanged__DelegateSignature"
+            ]["LoadedProperties"]
+            if p["Name"] == "bIsCracked"
+        )
+    )
+    param["Name"] = editor.name("Opened")
+    cancel = editor.function(
         "BPM_ReleaseCatalogClosedPoseIfOpened",
-        lambda fid: [
-            guard(ex("EX_LocalVariable", Variable=ptr(fid, "Opened"))),
-            assign(active(), ex("EX_False")),
-            stop_poll(),
-            call(
-                clear_timer,
-                ex("EX_Self"),
-                ex("EX_StringConst", Value="BPM_FreezeCatalogClosedPose"),
+        [
+            editor.guard(
+                editor.ex("EX_LocalVariable", Variable=editor.ptr("Opened", fid))
             ),
+            editor.assign_bool(PENDING, editor.ex("EX_False")),
+            editor.assign_bool(STARTED, editor.ex("EX_False")),
+            timer_clear(TRY),
+            timer_clear(FREEZE),
+            editor.call(restore, local=True),
         ],
-        param=True,
     )
+    fn = document["Exports"][cancel - 1]
+    fn["LoadedProperties"] = [param]
+    fn["CreateBeforeSerializationDependencies"] = [
+        v for v in fn["CreateBeforeSerializationDependencies"] if v != cancel
+    ]
 
-    def post(wrapper, expr, dependency, before=False):
-        code = wrapper["ScriptBytecode"]
-        i = next(i for i, x in enumerate(code) if op_type(x) == "EX_Return")
-        code.insert(0 if before else i, expr)
-        wrapper["ScriptBytecodeSize"] += kismet_size(expr)
-        wrapper["CreateBeforeSerializationDependencies"].append(dependency)
+    def hook(name, call, before=False):
+        fn = es(document)[name]
+        code = fn["ScriptBytecode"]
+        index = next(i for i, expr in enumerate(code) if op_type(expr) == "EX_Return")
+        code.insert(0 if before else index, call)
+        fn["ScriptBytecodeSize"] += kismet_size(call)
+        fn["CreateBeforeSerializationDependencies"].append(call["StackNode"])
 
-    post(begin, call(start, local=True), start)
-    post(closed_handler, call(keep, local=True), keep)
-    opened_id = d["Exports"].index(opened_handler) + 1
-    post(
-        opened_handler,
-        call(
+    hook("ReceiveBeginPlay", editor.call(start, local=True))
+    hook(
+        "BndEvt__CrackableActorComponent_K2Node_ComponentBoundEvent_0_OnCrackedStateChanged__DelegateSignature",
+        editor.call(keep, local=True),
+    )
+    opened = "BndEvt__CrackableActorComponent_K2Node_ComponentBoundEvent_1_OnCrackedStateChanged__DelegateSignature"
+    owner = document["Exports"].index(es(document)[opened]) + 1
+    hook(
+        opened,
+        editor.call(
             cancel,
-            ex("EX_LocalVariable", Variable=ptr(opened_id, "bIsCracked")),
+            editor.ex("EX_LocalVariable", Variable=editor.ptr("bIsCracked", owner)),
             local=True,
         ),
-        cancel,
         before=True,
     )
-    return d
+    return document

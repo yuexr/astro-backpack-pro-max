@@ -1,7 +1,7 @@
-"""Optional fixes for catalog opening events and the mission-log slide.
+"""catalog and mission-log fixes
 
-PANEL_RETRACTION_FIX in settings.py controls this patch. Disabling it leaves
-catalog startup initialization intact and stops packaging the mission-log BP.
+Turn off PANEL_RETRACTION_FIX to skip these patches. The catalog startup
+pose still runs, but the mission-log override is left out.
 """
 
 import copy
@@ -25,7 +25,7 @@ OPEN_EVENTS = (
 
 
 def verify_native_sources():
-    """Compare against the installed game, not just the extraction cache."""
+    """Check the installed game files before applying the patch."""
     manifest = json.loads((HERE / "panel-retraction-native.json").read_text())
     exe = PAK.parents[2] / "Binaries/Win64/Astro-Win64-Shipping.exe"
     assert exe.is_file(), "Cannot verify native panel code: game executable missing"
@@ -98,7 +98,7 @@ def _hook(editor, event, fid):
 
 
 def without_hooks(document):
-    """Verifier view of the BP before this optional patch; startup hooks stay."""
+    """Remove this patch for comparison; keep the startup hooks."""
     result = copy.deepcopy(document)
     for fn in result["Exports"]:
         if fn["ObjectName"] in OPEN_EVENTS:
@@ -128,8 +128,8 @@ def without_hooks(document):
 
 
 def patch_catalog(document):
-    # Evaluate the actual native closed pose after closing. Opening cancels
-    # the initialization timers before native animation takes control again.
+    # let vanilla finish the closed pose
+    # opening cancels our timers and gives the animation back to vanilla
     editor, imp = _editor(document)
     start = document["Exports"].index(es(document)["BPM_StartCatalogClosedPose"]) + 1
     keep = (
@@ -164,7 +164,7 @@ def patch_catalog(document):
             PREFIX + event.split("__")[1],
             [
                 editor.guard(editor.call(imp["valid"], component)),
-                # Ignore a stale pose event if closing has already begun.
+                # ignore late opening events once closing has started
                 editor.guard(editor.ctx(component, editor.call(opened))),
                 native,
             ],
@@ -179,17 +179,13 @@ def patch_catalog(document):
         lambda opened: [
             editor.guard(editor.call(imp["not"], opened, math=True)),
             editor.guard(editor.call(imp["valid"], component)),
-            # Vanilla leaves the opening timeline running after a quick close.
-            # Stop its pending events before evaluating the closed controls.
+            # a quick close can leave the opening timeline running
+            # stop it before settling the closed controls
             editor.call(stop_opening, local=True),
-            # Native close notifications can restore ExtendTop or freeze the
-            # mesh while our pose is settling. Reassert only while pending.
+            # vanilla can freeze the mesh before our pose finishes
+            # keep it updating only while the correction is pending
             editor.call(keep, local=True),
-            editor.guard(
-                editor.call(imp["not"], editor.var("BPM_CatalogPosePending"), math=True)
-            ),
-            # Queue first; the existing poll waits for GetFullyClosed. Checking
-            # it here can discard a notification before the state has settled.
+            # try after each close event; no timer runs between attempts
             editor.call(start, local=True),
         ],
     )
@@ -198,9 +194,8 @@ def patch_catalog(document):
 
 
 def _mission_target(editor, catalog_source):
-    # Native catalog already removes hover translation from its stored closing
-    # transform. Mission log omits that step. Copy that native operation while
-    # preserving its rotation and scale; never replace the whole transform.
+    # the catalog subtracts its hover offset before saving the closed position
+    # the mission log skips that step; copy it without changing rotation or scale
     source = es(catalog_source)["ExecuteUbergraph_BackpackCatalog"]
     native = source["ScriptBytecode"][226:230]
     assert len(native) == 4 and op_type(native[-1]) == "EX_Context"
@@ -290,9 +285,8 @@ def patch_mission(document, catalog_source):
             editor.guard(editor.call(imp["valid"], slide)),
             editor.assign_bool("SlideOut", editor.ex("EX_False")),
             editor.ctx(slide, editor.call(stop)),
-            # Re-evaluate the native slide at time zero, with its native update
-            # callback but no event callbacks. Both native tracks start at zero.
-            # This is idempotent when already tucked, and leaves hover behavior intact.
+            # reset the slide to its starting position without firing its events
+            # doing this twice is fine; hover still works
             editor.ctx(
                 slide,
                 editor.call(

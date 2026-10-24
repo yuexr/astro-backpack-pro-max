@@ -1,4 +1,4 @@
-"""Byte counts for the Blueprint instructions we emit."""
+"""byte sizes for our Blueprint instructions"""
 
 
 def op_type(x):
@@ -29,7 +29,7 @@ def kismet_size(x):
         return 14 + sum(map(kismet_size, x["Parameters"]))
     if t == "EX_StringConst":
         return len(x["Value"].encode("ascii")) + 2
-    if t == "EX_NameConst":
+    if t in ["EX_NameConst", "EX_InstanceDelegate"]:
         return 13
     if t == "EX_NoObject":
         return 1
@@ -68,6 +68,10 @@ def kismet_size(x):
         return 14 + sum(map(kismet_size, x["Value"]))
     if t == "EX_StructMemberContext":
         return 9 + kismet_size(x["StructExpression"])
+    if t == "EX_ArrayGetByRef":
+        return 1 + kismet_size(x["ArrayVariable"]) + kismet_size(x["ArrayIndex"])
+    if t in ["EX_AddMulticastDelegate", "EX_RemoveMulticastDelegate"]:
+        return 1 + kismet_size(x["Delegate"]) + kismet_size(x["DelegateToAdd"])
     if t == "EX_DynamicCast":
         return 9 + kismet_size(x["Target"])
     if t == "EX_PrimitiveCast":

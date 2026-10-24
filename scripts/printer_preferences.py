@@ -1,4 +1,4 @@
-"""Remember the local printer tooltip choice in its own generic save file."""
+"""save the printer tooltip setting on this computer"""
 
 import copy
 import hashlib
@@ -26,8 +26,7 @@ def preferences_asset():
     assert hashlib.sha256(exe.read_bytes()).hexdigest() == manifest["exe_sha256"], (
         "Game changed: review the printer save API before rebuilding."
     )
-    # Reuse the installed game's asset header and export schemas. The result is
-    # a plain SaveGame subclass with one bool, without actor components or code.
+    # reuse the game's SaveGame format; we only need one bool
     d = extract(
         "Astro/Content/ControlPanels/ModularControlPanel/PanelParts/ControlPanelButtonBase"
     )
@@ -152,7 +151,7 @@ def patch_preferences(document, hidden, getter_name, toggle_name):
         RepNotifyFunc="None",
         RepIndex=0,
     )
-    # OutFileSize is an int32 output in Astroneer's extended SaveGameToSlot API.
+    # Astroneer adds an int32 OutFileSize output to SaveGameToSlot
     int_field = copy.deepcopy(
         next(
             p
