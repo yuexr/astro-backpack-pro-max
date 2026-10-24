@@ -22,13 +22,14 @@ assert report["version"] == VERSION
 assert report["model_style"] == MODEL_STYLE
 assert (
     len(report["offline_checks"])
-    == 32 + 4 * int(PANEL_RETRACTION_FIX) + 4 * int(AUTO_ARM_BLOCKER)
+    == 34 + 4 * int(PANEL_RETRACTION_FIX) + 4 * int(AUTO_ARM_BLOCKER)
     and report["printer_tooltip_verified"]
     and report["printer_preference_verified"]
 )
 assert report["panel_retraction_fix"] == PANEL_RETRACTION_FIX
 assert report["auto_arm_verified"] == AUTO_ARM_BLOCKER
 assert report["event_visuals_verified"] and report["build_options_verified"]
+assert report["vehicle_visuals_verified"]
 pak = OUT / PAK_NAME
 assert hashlib.sha256(pak.read_bytes()).hexdigest() == report["pak_sha256"]
 archive = DIST / ARCHIVE_NAME

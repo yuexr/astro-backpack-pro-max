@@ -164,7 +164,12 @@ def add_visual_components(d, front_parts, corpse=False):
             component_parent = mesh_node
             e["Data"].append(prop("Bool", "bVisible", False))
         else:
-            location(d, e, [centre[i] - origin[k] for i, k in enumerate("XYZ")])
+            if corpse:
+                location(d, e, [centre[i] - origin[k] for i, k in enumerate("XYZ")])
+            else:
+                # vehicle mode hides the item branch; the shell isn't an item
+                component_parent = mesh_node
+                location(d, e, centre)
         e["CreateBeforeSerializationDependencies"] = [asset]
         comp = append(e)
         node = copy.deepcopy(mesh_node)

@@ -533,5 +533,9 @@ from verify_build_options import check_build_options
 
 report["offline_checks"].extend(check_build_options())
 report["build_options_verified"] = True
+from verify_vehicle_visuals import check_vehicle_visuals
+
+report["offline_checks"].extend(check_vehicle_visuals(assets, geometry))
+report["vehicle_visuals_verified"] = True
 (OUT / "build-report.json").write_text(json.dumps(report, indent=2))
 print(f"{VERSION}: {len(report['offline_checks'])} offline checks passed.")
