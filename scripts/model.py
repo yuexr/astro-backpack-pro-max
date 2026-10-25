@@ -28,6 +28,11 @@ def load_model():
         for m in doc["materials"]
         if m.get("extras", {}).get("nativePaletteBinding")
     }
+    fixed = {
+        m["name"]: m["extras"]["fixedMaterialBinding"]
+        for m in doc["materials"]
+        if m.get("extras", {}).get("fixedMaterialBinding")
+    }
     pieces = []
     for mesh in doc["meshes"]:
         if mesh["name"].startswith(
@@ -56,9 +61,13 @@ def load_model():
             .astype(float)
             * 100
         )
-        vertices, indices = np.unique(points, axis=0, return_inverse=True)
         material = doc["materials"][primitive["material"]]["name"]
-        assert material in palette, material
+        assert material in palette or material in fixed, material
+        if material in fixed:
+            # Keep each gold face separate so the raised facets stay sharp.
+            vertices, indices = points, np.arange(len(points))
+        else:
+            vertices, indices = np.unique(points, axis=0, return_inverse=True)
         pieces.append(
             {
                 "name": mesh["name"],
@@ -84,6 +93,7 @@ def load_model():
         "parts": pieces,
         "keep": keep,
         "PALETTE_BINDINGS": palette,
+        "FIXED_BINDINGS": fixed,
         "socket_centre_x": info["socket_centre_native_x"],
         "BATTERY_BACK_SHIFT": info["battery_back_shift"],
         "approved_model_sha256": hashlib.sha256(data).hexdigest(),

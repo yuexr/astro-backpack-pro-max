@@ -7,7 +7,8 @@ import subprocess
 import uuid
 
 from asset_io import HERE, append, es, location, name, prop, ps, setbool, xyz
-from catalog import patch_catalog_startup
+from catalog import CATALOG, build_catalog
+from catalog_mounts import patch_catalog_mounts
 from game_assets import ENV, GUI, REPAK, extract
 from mesh_assets import build_meshes
 from printer_tooltip import build_printer_assets, patch_backpack
@@ -213,14 +214,25 @@ def build():
         verify_native_sources()
     # remove any leftover override when this fix is switched off
     if not PANEL_RETRACTION_FIX:
-        for suffix in [".uasset", ".uexp"]:
-            old = STAGE / (
-                "Astro/Content/ControlPanels/Missions/MissionsControlPanel_Backpack"
-                + suffix
-            )
-            if old.exists():
-                old.unlink()
+        from catalog_animation import ANIMATIONS, SEQUENCE
+
+        for target in [
+            CATALOG,
+            "Astro/Content/ControlPanels/Missions/MissionsControlPanel_Backpack",
+            *ANIMATIONS,
+            SEQUENCE,
+        ]:
+            for suffix in [".uasset", ".uexp"]:
+                old = STAGE / (target + suffix)
+                if old.exists():
+                    old.unlink()
     meshes, geometry = build_meshes()
+    from luxe_materials import assets as material_samples
+
+    for label, document in material_samples():
+        write_asset(
+            document, f"Astro/Content/Mods/CompactBackpack16/{label}.uasset", label
+        )
     for label, d in meshes.items():
         write_asset(d, f"Astro/Content/Mods/CompactBackpack16/{label}.uasset", label)
     for label, (document, target) in build_printer_assets().items():
@@ -243,6 +255,7 @@ def build():
             from visual_events import patch_backpack as patch_visual_events
 
             patch_visual_events(d)
+            patch_catalog_mounts(d)
             if AUTO_ARM_BLOCKER:
                 from auto_arm import patch_backpack_slots
 
@@ -262,17 +275,17 @@ def build():
                 stale = STAGE / (target + suffix)
                 if stale.exists():
                     stale.unlink()
-    catalog = patch_catalog_startup()
     if PANEL_RETRACTION_FIX:
-        from panel_retraction import MISSION, patch_catalog, patch_mission
+        from catalog_animation import completion_assets
+        from panel_retraction import MISSION, patch_mission
 
-        patch_catalog(catalog)
+        catalog = build_catalog()
+        write_asset(catalog, CATALOG + ".uasset", "BackpackCatalog")
+        for path, document in completion_assets():
+            write_asset(document, path + ".uasset", path.rsplit("/", 1)[-1])
         mission = extract(MISSION)
         patch_mission(mission, extract("Astro/Content/Items/Catalog/BackpackCatalog"))
         write_asset(mission, MISSION + ".uasset", "MissionsControlPanel_Backpack")
-    write_asset(
-        catalog, "Astro/Content/Items/Catalog/BackpackCatalog.uasset", "BackpackCatalog"
-    )
     from visual_events import CHARACTER, character_asset
 
     write_asset(character_asset(), CHARACTER + ".uasset", "DesignAstro")

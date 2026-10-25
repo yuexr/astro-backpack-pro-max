@@ -45,6 +45,8 @@ def hook_return(function, call):
 
 
 def patch_backpack(document):
+    from catalog import QUEUE_READY
+
     editor = Blueprint(document)
     engine = editor.imp("/Script/Engine", kind="Package")
     astro = editor.imp("/Script/Astro", kind="Package")
@@ -127,6 +129,11 @@ def patch_backpack(document):
     mode_id = editor.function(
         MODE,
         [
+            editor.ex(
+                "EX_VirtualFunction",
+                VirtualFunctionName=editor.name(QUEUE_READY),
+                Parameters=[],
+            ),
             editor.guard(editor.call(valid, editor.var("NativeDroneSocket"))),
             editor.ctx(
                 editor.var("NativeDroneSocket"),
@@ -183,6 +190,8 @@ def patch_backpack(document):
 
 
 def character_asset():
+    from catalog import QUEUE_READY
+
     verify_sources()
     document = extract(CHARACTER)
     editor = Blueprint(document)
@@ -233,6 +242,14 @@ def character_asset():
                 editor.ex(
                     "EX_VirtualFunction",
                     VirtualFunctionName=editor.name(BIND),
+                    Parameters=[],
+                ),
+            ),
+            editor.ctx(
+                local,
+                editor.ex(
+                    "EX_VirtualFunction",
+                    VirtualFunctionName=editor.name(QUEUE_READY),
                     Parameters=[],
                 ),
             ),

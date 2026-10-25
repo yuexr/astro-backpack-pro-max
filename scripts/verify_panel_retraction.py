@@ -5,9 +5,9 @@ import json
 import struct
 
 from asset_io import HERE, es, ps
-from catalog import patch_catalog_startup
+from catalog import CLOSED, FINISH, OPEN_EVENTS
 from kismet import op_type
-from panel_retraction import OPEN_EVENTS, PREFIX, without_hooks
+from panel_retraction import PREFIX, without_hooks
 from settings import PANEL_RETRACTION_FIX
 from verify_behaviors import VM
 
@@ -154,7 +154,6 @@ def check_catalog_opening_events(catalog):
     for close_time in [0.0, 0.02, 0.059, 0.06, 0.1, 0.259, 0.26, 0.3, 0.8]:
         actor = {
             "BPM_CatalogPosePending": False,
-            "BPM_CatalogPoseStarted": False,
             "ExtendTop": True,
             "ExtendPanel": False,
             "rendered": True,
@@ -162,6 +161,7 @@ def check_catalog_opening_events(catalog):
                 "bNoSkeletonUpdate": False,
                 "visible": True,
                 "tick_enabled": True,
+                "anim_instance": {},
                 "VisibilityBasedAnimTickOption": 3,
             },
             "CrackableActorComponent": {"fully_closed": False, "cracked": True},
@@ -175,7 +175,7 @@ def check_catalog_opening_events(catalog):
         actor["CrackableActorComponent"]["cracked"] = False
         for expr in graph[223:226]:
             vm.eval(expr, actor, {})
-        vm.run(PREFIX + "CatalogClosed", [False])
+        vm.run(CLOSED, [False])
         assert not actor["SpindleTransition"]["playing"]
         assert actor["ExtendTop"] is True and actor["ExtendPanel"] is False
         calls = list(vm.event_calls)
@@ -185,7 +185,8 @@ def check_catalog_opening_events(catalog):
         assert actor["ExtendTop"] is True and actor["ExtendPanel"] is False
         actor["CrackableActorComponent"]["fully_closed"] = True
         vm.run("BPM_TrySetCatalogClosedPose")
-        vm.run("BPM_FreezeCatalogClosedPose")
+        vm.run("BPM_CatalogClosedAnimationFinished")
+        vm.run(FINISH)
         assert actor["ExtendTop"] is True and actor["ExtendPanel"] is False
         assert actor["SkeletalMesh"]["bNoSkeletonUpdate"]
 
@@ -204,25 +205,13 @@ def check_catalog_opening_events(catalog):
 
 
 def check_panel_retraction(assets):
-    catalog = assets["BackpackCatalog"]
     if not PANEL_RETRACTION_FIX:
         assert "MissionsControlPanel_Backpack" not in assets
-        assert not any(e["ObjectName"].startswith(PREFIX) for e in catalog["Exports"])
+        assert "BackpackCatalog" not in assets
         return []
+    catalog = assets["BackpackCatalog"]
     mission = assets["MissionsControlPanel_Backpack"]
     check_catalog_opening_events(catalog)
-    # All original scripts still execute verbatim; only the declared post-hooks
-    # are added. The catalog uses native closed-state inputs during initialization.
-    reference = patch_catalog_startup()
-    clean = without_hooks(catalog)
-    for name, old in es(reference).items():
-        if old.get("ScriptBytecode"):
-            assert canonical(es(clean)[name]["ScriptBytecode"]) == canonical(
-                old["ScriptBytecode"]
-            ), name
-            assert es(clean)[name]["ScriptBytecodeSize"] == old["ScriptBytecodeSize"], (
-                name
-            )
     original = json.loads(
         (
             HERE
@@ -258,88 +247,6 @@ def check_panel_retraction(assets):
     ]
     assert float(keys[0]["Value"][0]["Value"]["Time"]) == 0
     assert float(keys[0]["Value"][0]["Value"]["Value"]) == 0
-
-    actor = {
-        "BPM_CatalogPosePending": False,
-        "BPM_CatalogPoseStarted": False,
-        "ExtendTop": True,
-        "ExtendPanel": False,
-        "rendered": True,
-        "SkeletalMesh": {
-            "bNoSkeletonUpdate": True,
-            "visible": True,
-            "tick_enabled": False,
-            "VisibilityBasedAnimTickOption": 3,
-        },
-        "CrackableActorComponent": {"fully_closed": True, "cracked": False},
-        "SpindleTransition": {"playing": True, "calls": []},
-    }
-    vm = PanelVM(catalog, actor)
-    for cycle in range(20):
-        actor["CrackableActorComponent"]["fully_closed"] = False
-        vm.run("BPM_ReleaseCatalogClosedPoseIfOpened", [True])
-        vm.run(PREFIX + "CatalogClosed", [True])
-        assert not vm.timers
-        # An early close signal schedules one attempt. A later native full-close
-        # event starts pose settling, without repeating checks in between.
-        actor["SkeletalMesh"]["bNoSkeletonUpdate"] = True
-        vm.run(PREFIX + "CatalogClosed", [False])
-        assert actor["BPM_CatalogPosePending"]
-        assert not actor["BPM_CatalogPoseStarted"]
-        assert actor["SkeletalMesh"]["bNoSkeletonUpdate"]
-        assert not vm.timers["BPM_TrySetCatalogClosedPose"]["loop"]
-        vm.timers.pop("BPM_TrySetCatalogClosedPose")
-        vm.run("BPM_TrySetCatalogClosedPose")
-        assert not actor["BPM_CatalogPoseStarted"] and not vm.timers
-        actor["CrackableActorComponent"]["fully_closed"] = True
-        actor["ExtendTop"] = True
-        actor["SkeletalMesh"]["bNoSkeletonUpdate"] = True
-        vm.run(PREFIX + "CatalogClosed", [False])
-        vm.run("BPM_TrySetCatalogClosedPose")
-        assert actor["BPM_CatalogPosePending"] and actor["ExtendTop"] is True
-        assert not actor["SkeletalMesh"]["bNoSkeletonUpdate"]
-        assert actor["ExtendPanel"] is False
-        timers = copy.deepcopy(vm.timers)
-        # A second native close notification can restore its own frozen,
-        # extended state. The post-hook must preserve the pending correction.
-        actor["ExtendTop"] = True
-        actor["SkeletalMesh"]["bNoSkeletonUpdate"] = True
-        vm.run(PREFIX + "CatalogClosed", [False])
-        assert actor["ExtendTop"] is True and actor["ExtendPanel"] is False
-        assert not actor["SkeletalMesh"]["bNoSkeletonUpdate"]
-        assert (
-            vm.timers == timers
-        )  # duplicate notifications reuse the same one-shot callback
-        if cycle % 3 == 0:
-            actor["CrackableActorComponent"]["fully_closed"] = False
-            vm.run("BPM_ReleaseCatalogClosedPoseIfOpened", [True])
-            assert not vm.timers and not actor["BPM_CatalogPosePending"]
-            actor["CrackableActorComponent"]["fully_closed"] = True
-            vm.run(PREFIX + "CatalogClosed", [False])
-        vm.timers.pop("BPM_FreezeCatalogClosedPose")
-        vm.run("BPM_FreezeCatalogClosedPose")
-        assert actor["SkeletalMesh"]["bNoSkeletonUpdate"] and actor["ExtendTop"] is True
-        assert not vm.timers and not actor["BPM_CatalogPosePending"]
-
-    # Both native notifications must run our helper after their original
-    # handlers, so an early fully-closed check cannot lose the close event.
-    from panel_retraction import FULL_EVENT, STATE_EVENT
-
-    helper = catalog["Exports"].index(es(catalog)[PREFIX + "CatalogClosed"]) + 1
-    for event in [STATE_EVENT, FULL_EVENT]:
-        code = es(catalog)[event]["ScriptBytecode"]
-        calls = [x for x in code if x.get("StackNode") == helper]
-        assert len(calls) == 1
-        hook_index = code.index(calls[0])
-        native_index = next(
-            i
-            for i, x in enumerate(code)
-            if op_type(x) == "EX_LocalFinalFunction"
-            and x.get("StackNode", 0) > 0
-            and catalog["Exports"][x["StackNode"] - 1]["ObjectName"]
-            == "ExecuteUbergraph_BackpackCatalog"
-        )
-        assert native_index < hook_index
 
     rotation, scale = (7.0, 19.0, -4.0), (1.2, 0.8, 1.1)
     actor = {

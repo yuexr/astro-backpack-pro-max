@@ -10,7 +10,13 @@ from model import load_model
 from settings import MODEL_STYLE, OUT, PKG
 
 OUT.mkdir(parents=True, exist_ok=True)
-OFF = {"position": 136048, "tangent": 246150, "uv": 319542, "index": 73944}
+OFF = {
+    "position": 136048,
+    "tangent": 246150,
+    "uv": 319542,
+    "index": 73944,
+    "skin": 356264,
+}
 N = 9173
 
 
@@ -51,6 +57,18 @@ def build_meshes():
         p,
         atol=1e-4,
     )
+    native_skin = (
+        np.frombuffer(raw, "u1", count=N * 8, offset=OFF["skin"]).reshape(N, 8).copy()
+    )
+    assert np.array_equal(native_skin[:, 4:], a["WEIGHTS_0"])
+    joint_skin = {}
+    for joint in [0, 1, 2]:
+        pure = np.flatnonzero(
+            np.all((a["JOINTS_0"] == joint) | (a["WEIGHTS_0"] == 0), axis=1)
+        )
+        assert len(pure)
+        joint_skin[joint] = native_skin[pure[0]].copy()
+        assert np.all(native_skin[pure] == joint_skin[joint])
     result = {}
     report = {
         "approved_model": model["approved_model"],
@@ -102,34 +120,52 @@ def build_meshes():
     palette = {
         name: binding["uv"] for name, binding in model["PALETTE_BINDINGS"].items()
     }
+    fixed = model["FIXED_BINDINGS"]
+    palette.update({name: binding["uv"] for name, binding in fixed.items()})
     report["atlas_uv"] = palette
     report["palette_sources"] = model["PALETTE_BINDINGS"]
     pieces = model["parts"]
-    # split between parts if the native mesh buffer fills up
+    # Fixed gold has its own component so palette updates cannot recolour it.
     batches = []
-    batch = []
-    nv = nt = 0
+    pools = {}
     for piece in pieces:
-        if nv + len(piece["v"]) > len(root) or nt + len(piece["f"]) > len(ids):
+        material = fixed.get(piece["mat"], {}).get("asset")
+        pools.setdefault(material, []).append(piece)
+    for pool in pools.values():
+        batch = []
+        nv = nt = 0
+        for piece in pool:
+            if nv + len(piece["v"]) > len(root) or nt + len(piece["f"]) > len(ids):
+                batches.append(batch)
+                batch = []
+                nv = nt = 0
+            assert len(piece["v"]) <= len(root) and len(piece["f"]) <= len(ids)
+            batch.append(piece)
+            nv += len(piece["v"])
+            nt += len(piece["f"])
+        if batch:
             batches.append(batch)
-            batch = []
-            nv = nt = 0
-        assert len(piece["v"]) <= len(root) and len(piece["f"]) <= len(ids)
-        batch.append(piece)
-        nv += len(piece["v"])
-        nt += len(piece["f"])
-    if batch:
-        batches.append(batch)
-    if MODEL_STYLE == "luxe":
-        assert len(batches) == 1, "luxe needs to fit the same front1 component as base"
     for number, batch in enumerate(batches, 1):
         label = f"front{number}"
         verts = []
         faces = []
         uvs = []
+        allocation = []
+        joints = []
         count = 0
         for piece in batch:
             v = piece["v"]
+            joint = 0
+            if piece["name"].startswith(
+                ("LuxeShoulderSocketRing_", "LuxeElbowStar_", "LuxeElbowMoon_")
+            ):
+                joint = 1 if piece["name"].endswith("_-1") else 2
+            selected = root[count : count + len(v)]
+            assert len(selected) == len(v), (
+                "Not enough native vertices for shoulder skinning"
+            )
+            allocation.extend(selected)
+            joints.extend([joint] * len(v))
             verts.extend(
                 np.column_stack([1.46842727662 - v[:, 2], v[:, 0], v[:, 1] - 51])
             )
@@ -155,7 +191,7 @@ def build_meshes():
         pos = np.zeros((N, 3), "<f4")
         tex = np.zeros((N, 2), "<f2")
         tan = np.zeros((N, 8), "i1")
-        allocated = root[: len(v)]
+        allocated = np.array(allocation)
         pos[allocated] = v
         tex[allocated] = uv
         tan[allocated, :3] = np.round(tangent * 127).astype("i1")
@@ -164,11 +200,15 @@ def build_meshes():
         tan[allocated, 7] = 127
         indices = np.zeros_like(ids)
         indices[: len(f)] = allocated[f]
+        skin = native_skin.copy()
+        for joint in [0, 1, 2]:
+            skin[allocated[np.array(joints) == joint]] = joint_skin[joint]
         for key, array in [
             ("position", pos),
             ("uv", tex),
             ("tangent", tan),
             ("index", indices.astype("<u2")),
+            ("skin", skin),
         ]:
             raw[OFF[key] : OFF[key] + array.nbytes] = array.tobytes()
         result[label] = rename_mesh(copy.deepcopy(original), label, raw)
@@ -179,13 +219,18 @@ def build_meshes():
             indices=indices,
             normals=normal,
             allocated=allocated,
+            joints=np.array(joints),
         )
         report["assets"][label] = {
             "vertices": len(v),
             "triangles": len(f),
             "parts": [x["name"] for x in batch],
             "materials": {x["name"]: x["mat"] for x in batch},
+            "follows_shoulder_pose": any(joints),
         }
+        material = fixed.get(batch[0]["mat"], {}).get("asset")
+        if material:
+            report["assets"][label]["fixed_material"] = material
     report["front_components"] = list(report["assets"])
     # use the vanilla drone socket mesh with backpack palette UVs
     _, da, di = gltf(HERE / "exports/Slots/Content/new/slot_t1b_i.gltf")

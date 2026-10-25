@@ -1,8 +1,4 @@
-"""catalog and mission-log fixes
-
-Turn off PANEL_RETRACTION_FIX to skip these patches. The catalog startup
-pose still runs, but the mission-log override is left out.
-"""
+"""Optional mission-log retraction fix and native panel source guards."""
 
 import copy
 import hashlib
@@ -18,10 +14,6 @@ MISSION = "Astro/Content/ControlPanels/Missions/MissionsControlPanel_Backpack"
 STATE_EVENT = "BndEvt__CrackableActorComponent_K2Node_ComponentBoundEvent_1_OnCrackedStateChanged__DelegateSignature"
 FULL_EVENT = "BndEvt__CrackableActorComponent_K2Node_ComponentBoundEvent_0_OnCrackedStateChanged__DelegateSignature"
 PREFIX = "BPM_Retraction"
-OPEN_EVENTS = (
-    "SpindleTransition__CloseTop__EventFunc",
-    "SpindleTransition__PopOutBottom__EventFunc",
-)
 
 
 def verify_native_sources():
@@ -98,18 +90,9 @@ def _hook(editor, event, fid):
 
 
 def without_hooks(document):
-    """Remove this patch for comparison; keep the startup hooks."""
+    """Remove mission-log hooks for comparison with the native asset."""
     result = copy.deepcopy(document)
     for fn in result["Exports"]:
-        if fn["ObjectName"] in OPEN_EVENTS:
-            expr = fn["ScriptBytecode"][0]
-            node = expr.get("StackNode", 0)
-            if node > 0:
-                helper = result["Exports"][node - 1]
-                if helper["ObjectName"].startswith(PREFIX):
-                    native = copy.deepcopy(helper["ScriptBytecode"][-3])
-                    fn["ScriptBytecode"][0] = native
-                    fn["ScriptBytecodeSize"] += kismet_size(native) - kismet_size(expr)
         if fn["ObjectName"] not in [STATE_EVENT, FULL_EVENT]:
             continue
         kept = []
@@ -125,72 +108,6 @@ def without_hooks(document):
                 kept.append(expr)
         fn["ScriptBytecode"] = kept
     return result
-
-
-def patch_catalog(document):
-    # let vanilla finish the closed pose
-    # opening cancels our timers and gives the animation back to vanilla
-    editor, imp = _editor(document)
-    start = document["Exports"].index(es(document)["BPM_StartCatalogClosedPose"]) + 1
-    keep = (
-        document["Exports"].index(es(document)["BPM_KeepCatalogClosedPoseUpdating"]) + 1
-    )
-    component = editor.ex(
-        "EX_InstanceVariable",
-        Variable=editor.ptr("CrackableActorComponent", imp["control"]),
-    )
-    engine = editor.imp("/Script/Engine", kind="Package")
-    timeline = editor.imp("TimelineComponent", engine)
-    stop = editor.imp("Stop", timeline, "Function")
-    transition = editor.var("SpindleTransition")
-    stop_opening = editor.function(
-        PREFIX + "CatalogStopOpening",
-        [
-            editor.guard(editor.call(imp["valid"], transition)),
-            editor.ctx(transition, editor.call(stop)),
-        ],
-    )
-    astro = editor.imp("/Script/Astro", kind="Package")
-    crack = editor.imp("CrackableActorComponent", astro)
-    opened = editor.imp("GetCracked", crack, "Function")
-    for event in OPEN_EVENTS:
-        wrapper = es(document)[event]
-        native = copy.deepcopy(wrapper["ScriptBytecode"][0])
-        assert op_type(native) == "EX_LocalFinalFunction"
-        assert document["Exports"][native["StackNode"] - 1]["ObjectName"] == (
-            "ExecuteUbergraph_BackpackCatalog"
-        )
-        helper = editor.function(
-            PREFIX + event.split("__")[1],
-            [
-                editor.guard(editor.call(imp["valid"], component)),
-                # ignore late opening events once closing has started
-                editor.guard(editor.ctx(component, editor.call(opened))),
-                native,
-            ],
-        )
-        replacement = editor.call(helper, local=True)
-        wrapper["ScriptBytecode"][0] = replacement
-        wrapper["ScriptBytecodeSize"] += kismet_size(replacement) - kismet_size(native)
-        wrapper["CreateBeforeSerializationDependencies"].append(helper)
-    fn = _parameter_function(
-        editor,
-        PREFIX + "CatalogClosed",
-        lambda opened: [
-            editor.guard(editor.call(imp["not"], opened, math=True)),
-            editor.guard(editor.call(imp["valid"], component)),
-            # a quick close can leave the opening timeline running
-            # stop it before settling the closed controls
-            editor.call(stop_opening, local=True),
-            # vanilla can freeze the mesh before our pose finishes
-            # keep it updating only while the correction is pending
-            editor.call(keep, local=True),
-            # try after each close event; no timer runs between attempts
-            editor.call(start, local=True),
-        ],
-    )
-    _hook(editor, STATE_EVENT, fn)
-    _hook(editor, FULL_EVENT, fn)
 
 
 def _mission_target(editor, catalog_source):

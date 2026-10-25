@@ -1,11 +1,25 @@
-"""check appearance updates, callback cleanup and no polling"""
+"""check appearance events, cleanup and bounded catalog readiness"""
 
 import copy
 import json
 
 from asset_io import HERE, es
+from catalog import (
+    COMPLETE,
+    DEFER,
+    FINISH,
+    QUEUE_FINISH,
+    QUEUE_READY,
+    READY_REQUEST,
+    START,
+    STOP,
+    TRY,
+    WAIT_SECONDS,
+)
 from kismet import kismet_size, op_type
+from settings import PANEL_RETRACTION_FIX
 from verify_behaviors import VM
+from verify_catalog_events import TimedVM, new_actor
 from visual_events import BIND, CHARACTER, MODE, STATE, UNBIND
 
 
@@ -23,6 +37,10 @@ class EventVM(VM):
     def __init__(self, document, actor, pack_vm=None):
         super().__init__(document, actor)
         actor.setdefault(STATE, None)
+        actor.setdefault("Catalog", None)
+        actor.setdefault("catalogCreative", None)
+        actor.setdefault("creative", False)
+        actor.setdefault("backpack_mk2", None)
         self.pack_vm = pack_vm
 
     def eval(self, expr, obj, local):
@@ -49,6 +67,10 @@ class EventVM(VM):
             delegates[:] = [entry for entry in delegates if entry != target]
             return
         if kind == "EX_VirtualFunction":
+            if expr["VirtualFunctionName"] == READY_REQUEST:
+                return obj["vm"].run(READY_REQUEST)
+            if expr["VirtualFunctionName"] == QUEUE_READY and obj is self.actor:
+                return self.run(QUEUE_READY)
             assert self.pack_vm is not None and obj is self.pack_vm.actor
             assert not expr["Parameters"]
             return self.pack_vm.run(expr["VirtualFunctionName"])
@@ -68,11 +90,16 @@ class EventVM(VM):
                 return a is not b
             if name == "IsValid":
                 target = self.eval(expr["Parameters"][0], obj, local)
-                return target is not None and not target.get("invalid", False)
+                return target is not None and not (
+                    isinstance(target, dict) and target.get("invalid", False)
+                )
         return super().eval(expr, obj, local)
 
 
 def check_visual_events(assets, geometry):
+    from verify_catalog_palette import check_material_bindings
+
+    check_material_bindings(assets["BackpackRail"])
     # Every original character instruction is retained, including async loading
     # and its continuation. Only the final material setter gains a post-hook.
     character = assets["DesignAstro"]
@@ -124,15 +151,94 @@ def check_visual_events(assets, geometry):
     pack = {"state": state, "creative": False, "backpack_mk2": {"material": object()}}
     components = (
         [f"NativeBackpackSocket{i}" for i in range(1, 17)]
-        + ["Compact_" + name for name in geometry["front_components"]]
+        + [
+            "Compact_" + name
+            for name in geometry["front_components"]
+            if not geometry["assets"][name].get("fixed_material")
+        ]
         + ["NativeDroneSocket"]
     )
     for name in components:
         pack[name] = {"visible": False, "material": None}
+    fixed_components = [
+        "Compact_" + name
+        for name in geometry["front_components"]
+        if geometry["assets"][name].get("fixed_material")
+    ]
+    fixed_gold = object()
+    for name in fixed_components:
+        pack[name] = {"visible": True, "material": fixed_gold}
     pack_vm = EventVM(assets["BackpackRail"], pack)
     char_vm = EventVM(character, {"backpack": None}, pack_vm)
     char_vm.run("BPM_RefreshBackpackMaterial")
     assert not state["OnCreativeModeEnabledChanged"]
+    # Appearance/mode events select only the active catalog. The catalog owns
+    # its finite readiness window; no backpack-side fixed-delay timer is needed.
+    ready_pack = {
+        "Catalog": None,
+        "catalogCreative": None,
+        "creative": False,
+        "NativeDroneSocket": {"visible": False},
+    }
+    ready_vm = EventVM(assets["BackpackRail"], ready_pack)
+    ready_vm.run(QUEUE_READY)
+    assert not ready_vm.timers
+    if PANEL_RETRACTION_FIX:
+        catalogs = [new_actor(visible=False, rendered=False) for _ in range(2)]
+        for actor in catalogs:
+            actor["vm"] = TimedVM(assets["BackpackCatalog"], actor)
+        ready_pack["Catalog"] = {"ChildActor": catalogs[0]}
+        ready_pack["catalogCreative"] = {"ChildActor": catalogs[1]}
+        for _ in range(20):
+            ready_vm.run(QUEUE_READY)
+        assert not ready_vm.timers
+        assert set(catalogs[0]["vm"].timers) == ({DEFER, STOP})
+        assert not catalogs[1]["vm"].timers
+        catalogs[0]["rendered"] = True
+        catalogs[0]["SkeletalMesh"]["visible"] = True
+        catalogs[0]["vm"].advance(0.02)
+        catalogs[0]["vm"].run(COMPLETE)
+        catalogs[0]["vm"].advance(0.02)
+        assert not catalogs[0]["vm"].timers
+        # A mode change can initialize the previously hidden creative catalog.
+        ready_pack["creative"] = True
+        catalogs[1]["CrackableActorComponent"]["fully_closed"] = False
+        ready_vm.run(MODE, [True])
+        assert not catalogs[1]["vm"].timers, "Do not correct an open panel"
+        catalogs[1]["CrackableActorComponent"]["fully_closed"] = True
+        ready_vm.run(MODE, [True])
+        assert set(catalogs[1]["vm"].timers) == ({DEFER, STOP})
+        catalogs[1]["rendered"] = True
+        catalogs[1]["SkeletalMesh"]["visible"] = True
+        catalogs[1]["vm"].advance(0.02)
+        catalogs[1]["vm"].run(COMPLETE)
+        catalogs[1]["vm"].advance(0.02)
+        for _ in range(20):
+            ready_vm.run(QUEUE_READY)
+        assert not ready_vm.timers
+        assert all(not actor["vm"].timers for actor in catalogs)
+
+        # Appearance may finish before a catalog is created. Its deferred startup
+        # must pick up the existing applied material without a new palette change.
+        palette = object()
+        ready_pack["creative"] = False
+        ready_pack["backpack_mk2"] = {"material": palette}
+        late = new_actor(rendered=False)
+        late["parent"] = ready_pack
+        ready_pack["vm"] = ready_vm
+        late["SkeletalMesh"]["material"] = object()
+        late["vm"] = TimedVM(assets["BackpackCatalog"], late)
+        ready_pack["Catalog"] = {"ChildActor": late}
+        late["vm"].run(READY_REQUEST)
+        late["vm"].advance(0.02)
+        assert late["SkeletalMesh"]["material"] is palette
+        updated = object()
+        ready_pack["backpack_mk2"]["material"] = updated
+        ready_vm.run(QUEUE_READY)
+        assert late["SkeletalMesh"]["material"] is updated
+        late["vm"].run(COMPLETE)
+        late["vm"].advance(0.02)
+        assert not late["vm"].timers and not ready_vm.timers
     char_vm.actor["backpack"] = pack
     for _ in range(20):
         # Model the native assignment immediately followed by our actual helper.
@@ -140,6 +246,10 @@ def check_visual_events(assets, geometry):
         pack["backpack_mk2"]["material"] = new_material
         char_vm.run("BPM_RefreshBackpackMaterial")
         assert all(pack[name]["material"] is new_material for name in components)
+        assert all(pack[name]["material"] is fixed_gold for name in fixed_components)
+        for name, specification in geometry["assets"].items():
+            if specification.get("follows_shoulder_pose"):
+                assert pack["Compact_" + name]["master_pose"] is pack["backpack_mk2"]
         assert len(state["OnCreativeModeEnabledChanged"]) == 1
         assert pack[STATE] is state
         assert not pack_vm.timers and not char_vm.timers
@@ -172,6 +282,12 @@ def check_visual_events(assets, geometry):
         actor.update(
             {name: {"visible": False, "material": None} for name in components}
         )
+        actor.update(
+            {
+                name: {"visible": True, "material": fixed_gold}
+                for name in fixed_components
+            }
+        )
         return actor, EventVM(assets["BackpackRail"], actor)
 
     remote, remote_vm = new_pack(state)
@@ -187,6 +303,10 @@ def check_visual_events(assets, geometry):
         for name in components
     )
     assert remote["NativeDroneSocket"]["visible"]
+    for name, specification in geometry["assets"].items():
+        if specification.get("follows_shoulder_pose"):
+            assert remote["Compact_" + name]["master_pose"] is remote["backpack_mk2"]
+    assert all(remote[name]["material"] is fixed_gold for name in fixed_components)
 
     # removing one backpack must leave the other player's callback alone
     # its replacement should pick up the current mode immediately
@@ -257,18 +377,23 @@ def check_visual_events(assets, geometry):
                 assert call not in forbidden, (label, fn["ObjectName"], call)
                 if call in ["K2_SetTimer", "K2_SetTimerDelegate"]:
                     params = expr["Parameters"]
-                    assert label == "BackpackCatalog"
                     assert op_type(params[3]) == "EX_False", "Repeating mod timer"
                     callback = params[1]["Value"]
-                    assert callback != fn["ObjectName"], "Self-rescheduling timer"
+                    assert label == "BackpackCatalog"
+                    assert callback != fn["ObjectName"] or callback == TRY
+                    if callback == STOP:
+                        assert fn["ObjectName"] == "BPM_StartCatalogClosedPose"
+                        assert params[2]["Value"] == WAIT_SECONDS
                     timers.append((fn["ObjectName"], callback))
-    assert sorted(timers) == [
-        ("BPM_StartCatalogClosedPose", "BPM_TrySetCatalogClosedPose"),
-        ("BPM_TrySetCatalogClosedPose", "BPM_FreezeCatalogClosedPose"),
-    ]
+    expected_timers = (
+        [(START, STOP), (START, DEFER), (TRY, TRY), (QUEUE_FINISH, FINISH)]
+        if PANEL_RETRACTION_FIX
+        else []
+    )
+    assert sorted(timers) == sorted(expected_timers)
     return [
-        "native appearance/load bytecode retained; backpack material copied after the final native setter",
+        "native material-function owners verified; appearance/load bytecode retained and material copied after the final setter",
         "startup, late-backpack and replacement refreshes pass; simulated off-screen players keep separate materials",
         "Creative bindings remain unique, follow GameState replacements and detach on EndPlay; simulated clients stay independent",
-        "no added tick hooks or world scans; only two non-repeating catalog callbacks, with no self-rescheduling",
+        "no added tick hooks or world scans; catalog readiness retries have a ten-second deadline and cancel on opening",
     ]

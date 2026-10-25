@@ -393,6 +393,9 @@ def printer_head():
 
 def output_tooltip_mode(editor, hidden, getter):
     """Let the native focus handler reveal a hidden recipe on hover."""
+    from printer_hover import add_hover_helper
+
+    hover_helper = add_hover_helper(editor)
     engine = editor.imp("/Script/Engine", kind="Package")
     astro = editor.imp("/Script/Astro", kind="Package")
     tooltip_class = editor.imp("TooltipComponent", astro)
@@ -400,6 +403,8 @@ def output_tooltip_mode(editor, hidden, getter):
     valid = editor.imp("IsValid", system, "Function")
     focus = editor.imp("GetHasFocus", tooltip_class, "Function")
     state = editor.imp("SetDesiredTooltipState", tooltip_class, "Function")
+    maths = editor.imp("KismetMathLibrary", engine)
+    both = editor.imp("BooleanAND", maths, "Function")
     fid = len(editor.d["Exports"]) + 1
     tooltip = editor.ex("EX_LocalVariable", Variable=editor.ptr("OutputTooltip", fid))
     enabled = editor.ex("EX_LocalVariable", Variable=editor.ptr("OutputVisible", fid))
@@ -424,6 +429,18 @@ def output_tooltip_mode(editor, hidden, getter):
     # Set one desired state, avoiding a transient show/hide animation sequence.
     body = [
         editor.guard(editor.call(valid, tooltip)),  # 0 -> return
+        editor.call(
+            hover_helper,
+            editor.ctx(
+                tooltip,
+                editor.ex(
+                    "EX_InstanceVariable",
+                    Variable=editor.ptr("InputRespondingCollider", tooltip_class),
+                ),
+            ),
+            editor.call(both, enabled, editor.call(getter, local=True), math=True),
+            local=True,
+        ),
         editor.guard(enabled),  # 1 -> disabled
         editor.guard(editor.call(getter, local=True)),  # 2 -> always visible
         mode(0),  # 3: native hover mode
@@ -443,7 +460,7 @@ def output_tooltip_mode(editor, hidden, getter):
     offsets = [0]
     for expression in fn["ScriptBytecode"]:
         offsets.append(offsets[-1] + kismet_size(expression))
-    for instruction, destination in {1: 12, 2: 9, 4: 7, 6: 14, 8: 14, 11: 14}.items():
+    for instruction, destination in {2: 13, 3: 10, 5: 8, 7: 15, 9: 15, 12: 15}.items():
         fn["ScriptBytecode"][instruction]["CodeOffset"] = offsets[destination]
     native_view = es(editor.d)["CLIENT Printer View"]
     parameter = copy.deepcopy(

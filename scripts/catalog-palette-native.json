@@ -1,0 +1,15 @@
+{
+  "exe_sha256": "4a57b4b1ac64defa09ea6d6c987d5e513d79243a2b33ab05cba099ad1e377675",
+  "functions": {
+    "GetMaterial": {
+      "owner": "PrimitiveComponent",
+      "name_pointer_rva": "0x63211c0",
+      "owner_getter_rva": "0x3f45bd0"
+    },
+    "SetMaterialByName": {
+      "owner": "PrimitiveComponent",
+      "name_pointer_rva": "0x63225c0",
+      "owner_getter_rva": "0x3f45bd0"
+    }
+  }
+}

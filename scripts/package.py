@@ -22,7 +22,7 @@ assert report["version"] == VERSION
 assert report["model_style"] == MODEL_STYLE
 assert (
     len(report["offline_checks"])
-    == 34 + 4 * int(PANEL_RETRACTION_FIX) + 8 * int(AUTO_ARM_BLOCKER)
+    == 34 + 6 * int(PANEL_RETRACTION_FIX) + 8 * int(AUTO_ARM_BLOCKER)
     and report["printer_tooltip_verified"]
     and report["printer_preference_verified"]
 )

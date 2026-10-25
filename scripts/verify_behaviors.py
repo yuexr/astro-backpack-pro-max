@@ -1,12 +1,11 @@
 """Check the drone and catalog helpers without running the game."""
 
-import copy
 import hashlib
 import json
 import struct
 
 from asset_io import HERE, ps
-from kismet import kismet_size, op_type
+from kismet import op_type
 
 
 class VM:
@@ -18,6 +17,8 @@ class VM:
         self.timers = {}
         cls = next(e for e in asset["Exports"] if "ClassExport" in e["$type"])
         for p in cls.get("LoadedProperties", []):
+            if p["Name"].startswith("BPM_") and "FObjectProperty" in p["$type"]:
+                actor.setdefault(p["Name"], None)
             if p["Name"].startswith("BPM_") and (
                 "FBoolProperty" in p["$type"] or "FByteProperty" in p["$type"]
             ):
@@ -60,11 +61,13 @@ class VM:
             )[n]
         if t in ["EX_True", "EX_False"]:
             return t == "EX_True"
+        if t == "EX_NoObject":
+            return None
         if t == "EX_Self":
             return self.actor
         if t in ["EX_IntZero", "EX_Nothing"]:
             return 0
-        if t in ["EX_StringConst", "EX_FloatConst", "EX_ByteConst"]:
+        if t in ["EX_StringConst", "EX_FloatConst", "EX_ByteConst", "EX_NameConst"]:
             return x["Value"]
         if t == "EX_Let":
             self.set(x["Variable"], self.eval(x["Expression"], obj, local), obj, local)
@@ -75,7 +78,7 @@ class VM:
                 self.eval(x["ObjectExpression"], obj, local),
                 local,
             )
-        if t == "EX_LetBool":
+        if t in ["EX_LetBool", "EX_LetObj"]:
             self.set(
                 x["VariableExpression"],
                 self.eval(x["AssignmentExpression"], obj, local),
@@ -93,8 +96,16 @@ class VM:
                 return args[0] is not None
             if name == "Not_PreBool":
                 return not args[0]
+            if name == "EqualEqual_ObjectObject":
+                return args[0] is args[1]
             if name == "GetFullyClosed":
                 return obj["fully_closed"]
+            if name == "GetAnimInstance":
+                return obj.get("anim_instance")
+            if name == "GetAttachParentActor":
+                return self.actor.get("parent")
+            if name == "K2_GetRootComponent":
+                return obj.get("SkeletalMesh")
             if name == "IsVisible":
                 return obj["visible"]
             if name == "WasRecentlyRendered":
@@ -104,6 +115,11 @@ class VM:
                 return
             if name == "IsComponentTickEnabled":
                 return obj["tick_enabled"]
+            if name == "IsActorTickEnabled":
+                return self.actor.get("actor_tick_enabled", True)
+            if name == "SetActorTickEnabled":
+                self.actor["actor_tick_enabled"] = args[0]
+                return
             if name == "K2_SetTimer":
                 self.timers[args[1]] = {"seconds": args[2], "loop": args[3]}
                 return
@@ -116,6 +132,13 @@ class VM:
                 return obj["material"]
             if name == "SetMaterial":
                 obj["material"] = args[1]
+                return
+            if name == "SetMaterialByName":
+                assert args[0] == "Suit"
+                obj["material"] = args[1]
+                return
+            if name == "SetMasterPoseComponent":
+                obj["master_pose"] = args[0]
                 return
             if name == "SetVisibility":
                 obj["visible"] = args[0]
@@ -177,60 +200,13 @@ def check_behaviors(assets, geometry):
     )
     assert ps(owner)["InternalVariableName"]["Value"] == "backpack_mk2"
 
-    # All vanilla catalog logic remains unchanged; only small post-callback
-    # hooks defer its initial skeleton freeze. Creative inherits this class.
-    from panel_retraction import without_hooks
-
-    d = without_hooks(assets["BackpackCatalog"])
-    ex = exports(d)
-    original = json.loads(
-        (HERE / "vanilla/Astro/Content/Items/Catalog/BackpackCatalog.json").read_text()
-    )
-    old = exports(original)
-    wrappers = {
-        "ReceiveBeginPlay": 10,
-        "BndEvt__CrackableActorComponent_K2Node_ComponentBoundEvent_0_OnCrackedStateChanged__DelegateSignature": 10,
-        "BndEvt__CrackableActorComponent_K2Node_ComponentBoundEvent_1_OnCrackedStateChanged__DelegateSignature": 19,
-    }
-    for n, e in old.items():
-        if e.get("ScriptBytecode"):
-            code = copy.deepcopy(ex[n]["ScriptBytecode"])
-            if n in wrappers:
-                i = next(i for i, x in enumerate(code) if op_type(x) == "EX_Return")
-                hook = code.pop(
-                    0
-                    if n.endswith("_1_OnCrackedStateChanged__DelegateSignature")
-                    else i - 1
-                )
-                assert (
-                    op_type(hook) == "EX_LocalFinalFunction"
-                    and kismet_size(hook) == wrappers[n]
-                )
-            assert code == e["ScriptBytecode"], n
-            assert ex[n]["ScriptBytecodeSize"] == e[
-                "ScriptBytecodeSize"
-            ] + wrappers.get(n, 0)
-        if e.get("Data") and n != "Default__BackpackCatalog_C":
-            assert ex[n]["Data"] == e["Data"], n
-    for n, e in ex.items():
-        if n.startswith("BPM_"):
-            assert sum(map(kismet_size, e["ScriptBytecode"])) == e["ScriptBytecodeSize"]
-
+    from settings import PANEL_RETRACTION_FIX
     from verify_catalog_events import check_catalog_once
 
-    check_catalog_once(d)
-
-    # Retain the original AnimInstance and its montage delegate bindings.
-    # Both native closed-state inputs are held while the pose initializes.
-    for name, function in ex.items():
-        if name.startswith("BPM_"):
-            text = str(function.get("ScriptBytecode", []))
-            assert "AnimationMode" not in text and "AnimClass" not in text
-    generated_imports = d["Imports"][len(original["Imports"]) :]
-    assert not any(
-        p["ObjectName"] in ["PlayAnimation", "SetAnimationMode"]
-        for p in generated_imports
-    )
+    if PANEL_RETRACTION_FIX:
+        check_catalog_once(assets["BackpackCatalog"])
+    else:
+        assert "BackpackCatalog" not in assets
 
     def read_glb(path):
         b = path.read_bytes()

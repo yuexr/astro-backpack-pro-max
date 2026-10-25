@@ -8,12 +8,19 @@ import numpy as np
 from asset_io import HERE, es, gltf, ps, xyz
 from game_assets import UMODEL
 from kismet import kismet_size, op_type
+from printer_hover import CLICKABLE_CHANNEL, HOVER_COLLIDER, SYNC_HOVER
 from printer_tooltip import APPLY_OUTPUT, BUTTON, GET_HIDDEN, HIDDEN, TOGGLE
 from settings import OUT, PRINTER_ICON_SCALE
 from verify_behaviors import VM
 
 
 class PrinterVM(VM):
+    def __init__(self, document, actor):
+        super().__init__(document, actor)
+        actor.setdefault(HOVER_COLLIDER, None)
+        actor.setdefault("collision_requests", [])
+        actor.setdefault("response_requests", [])
+
     def run(self, name, args=()):
         # Existing printer checks isolate the visual toggle from persistence;
         # verify_preferences exercises the save/load helpers and the getter.
@@ -21,7 +28,7 @@ class PrinterVM(VM):
 
         if name in [LOAD, SAVE]:
             return
-        if name == APPLY_OUTPUT:
+        if name in [APPLY_OUTPUT, SYNC_HOVER]:
             function = es(self.d)[name]
             local = {
                 p["Name"]: value for p, value in zip(function["LoadedProperties"], args)
@@ -55,6 +62,7 @@ class PrinterVM(VM):
         self.actor["native_view_calls"] += 1
         if self.actor["output"] is None:
             return
+        self.actor["output"].setdefault("InputRespondingCollider", {"collision": 0})
         code = next(
             e for e in self.d["Exports"] if e["ObjectName"] == "CLIENT Printer View"
         )["ScriptBytecode"]
@@ -67,6 +75,16 @@ class PrinterVM(VM):
 
     def eval(self, x, obj, local):
         kind = op_type(x)
+        if kind == "EX_NoObject":
+            return None
+        if kind == "EX_LetObj":
+            self.set(
+                x["VariableExpression"],
+                self.eval(x["AssignmentExpression"], obj, local),
+                obj,
+                local,
+            )
+            return
         if kind == "EX_ByteConst":
             return x["Value"]
         if kind in ["EX_CallMath", "EX_FinalFunction", "EX_LocalFinalFunction"]:
@@ -83,6 +101,25 @@ class PrinterVM(VM):
                 return not args[0]
             if fn == "BooleanAND":
                 return args[0] and args[1]
+            if fn == "EqualEqual_ObjectObject":
+                return args[0] is args[1]
+            if fn == "EqualEqual_ByteByte":
+                return args[0] == args[1]
+            if fn == "GetCollisionEnabled":
+                return obj["collision"]
+            if fn == "SetCollisionEnabled":
+                assert args[0] in [0, 1], "hover must never enable physics"
+                obj["collision"] = args[0]
+                self.actor["collision_requests"].append((obj, args[0]))
+                return
+            if fn == "GetCollisionResponseToChannel":
+                assert args == [CLICKABLE_CHANNEL]
+                return obj.get("responses", {}).get(CLICKABLE_CHANNEL, 0)
+            if fn == "SetCollisionResponseToChannel":
+                assert args[0] == CLICKABLE_CHANNEL
+                obj.setdefault("responses", {})[args[0]] = args[1]
+                self.actor["response_requests"].append((obj, *args))
+                return
             if fn == "GetIndicatorTooltipForSlot":
                 assert args[0] is self.actor["Printer Output Slot"] and args[1] == 0
                 return self.actor["output"]
@@ -190,6 +227,62 @@ def check_printer(assets):
         assert actor[HIDDEN] == (i % 2 == 0)
         assert actor["output"]["state"] == (0 if actor[HIDDEN] else 2)
     assert actor["native_view_calls"] == 7
+    # Native indicator meshes start with collision disabled. Arm once per
+    # hologram, restore on toggle/close, and never change slot clickability.
+    hover = fresh()
+    hover[HIDDEN] = True
+    hover_vm = PrinterVM(backpack, hover)
+    hover_vm.native_view()
+    first = hover["output"]["InputRespondingCollider"]
+    assert first["collision"] == 1 and hover[HOVER_COLLIDER] is first
+    assert first["responses"][CLICKABLE_CHANNEL] == 2
+    for _ in range(100):
+        hover_vm.native_view()
+    assert hover["collision_requests"] == [(first, 1)]
+    assert hover["response_requests"] == [(first, CLICKABLE_CHANNEL, 2)]
+    second = {"collision": 0}
+    hover["output"]["InputRespondingCollider"] = second
+    hover_vm.native_view()
+    assert first["collision"] == 0 and second["collision"] == 1
+    assert first["responses"][CLICKABLE_CHANNEL] == 0
+    assert second["responses"][CLICKABLE_CHANNEL] == 2
+    hover["PrinterVisible"] = False
+    hover_vm.native_view()
+    assert second["collision"] == 0 and hover[HOVER_COLLIDER] is None
+    assert second["responses"][CLICKABLE_CHANNEL] == 0
+    hover["PrinterVisible"] = True
+    hover_vm.native_view()
+    hover_vm.run(TOGGLE)
+    assert second["collision"] == 0 and hover[HOVER_COLLIDER] is None
+    for native_collision in [1, 2, 3]:
+        hover[HIDDEN] = True
+        hover["output"]["InputRespondingCollider"] = {"collision": native_collision}
+        hover_vm.native_view()
+        assert hover[HOVER_COLLIDER] is None
+        assert (
+            hover["output"]["InputRespondingCollider"]["collision"] == native_collision
+        )
+    hover["output"]["InputRespondingCollider"] = None
+    hover_vm.native_view()
+    assert hover[HOVER_COLLIDER] is None
+    # Keep every other response, and restore a non-default prior response too.
+    custom = {"collision": 0, "responses": {CLICKABLE_CHANNEL: 1, 3: 0, 15: 0}}
+    hover["output"]["InputRespondingCollider"] = custom
+    hover_vm.native_view()
+    assert custom["responses"] == {CLICKABLE_CHANNEL: 2, 3: 0, 15: 0}
+    hover[HIDDEN] = False
+    hover_vm.native_view()
+    assert custom["collision"] == 0
+    assert custom["responses"] == {CLICKABLE_CHANNEL: 1, 3: 0, 15: 0}
+    original_backpack = json.loads(
+        (HERE / "vanilla/Astro/Content/Items/BackpackRail.json").read_text()
+    )
+    output_template = "Printer Slot_GEN_VARIABLE"
+    assert ps(es(backpack)[output_template])["Unclickable"]["Value"] is True
+    assert (
+        es(backpack)[output_template]["Data"]
+        == es(original_backpack)[output_template]["Data"]
+    )
     vm.run(TOGGLE)
     actor["state_requests"].clear()
     for _ in range(100):
@@ -463,7 +556,7 @@ def check_printer(assets):
     return [
         "eye button uses native left sound when hiding and right when showing; no recipe navigation",
         "tooltip starts visible; its hide setting is local and not replicated",
-        "hidden output uses native hover-only visibility; focused/unfocused, closed-printer and missing-output cases pass without transient show/hide requests",
+        "hidden output arms query-only hover once per hologram and restores on toggle/close; slot remains unclickable, with no transient show/hide requests",
         "remote backpacks cannot change the local tooltip preference",
         "existing printer components, rounded button shape and material colours preserved",
         "approved 41-triangle info disc matches cooked mesh; native casing and white glyph UV retained",

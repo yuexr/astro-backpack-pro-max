@@ -11,6 +11,8 @@ import numpy as np
 from asset_io import HERE, es, gltf, prop, ps, xyz
 from auto_arm_items import ITEMS
 from game_assets import ENV, GUI, REPAK, UMODEL
+from luxe_materials import SAMPLES
+from luxe_materials import verify as verify_material_samples
 from settings import (
     AUTO_ARM_BLOCKER,
     MODEL_STYLE,
@@ -281,9 +283,30 @@ for label, path, corpse in [
         for x in fn["ScriptBytecode"]
         if "CodeOffset" in x
     )
-    assert sum(type_(x) == "EX_Context" for x in fn["ScriptBytecode"]) == 16 + len(
-        front_labels
-    ) + (0 if corpse else 2)
+    palette_fronts = [
+        name
+        for name in front_labels
+        if not geometry["assets"][name].get("fixed_material")
+    ]
+    assert sum(type_(x) == "EX_Context" for x in fn["ScriptBytecode"]) == (
+        16
+        + len(palette_fronts)
+        + (0 if corpse else 2)
+        + sum(
+            x.get("follows_shoulder_pose", False) for x in geometry["assets"].values()
+        )
+    )
+    for name in front_labels:
+        fixed_material = geometry["assets"][name].get("fixed_material")
+        component = ps(ex["Compact_" + name + "_GEN_VARIABLE"])
+        if fixed_material:
+            ref = component["OverrideMaterials"]["Value"][0]["Value"]
+            imported = d["Imports"][-ref - 1]
+            package = d["Imports"][-imported["OuterIndex"] - 1]
+            assert package["ObjectName"] == fixed_material
+            assert imported["ClassName"] == "MaterialInstanceConstant"
+        else:
+            assert "OverrideMaterials" not in component
     if not corpse:
         comp = ex["NativeDroneSocket_GEN_VARIABLE"]
         p = ps(comp)
@@ -406,8 +429,29 @@ for label in ["backpack_mk2", "backpack_socket", "drone_socket"] + front_labels:
         assert np.array_equal(
             a["TEXCOORD_0"][indices[active]], expected["uv"][wanted[active]]
         )
-        used = np.unique(indices)
-        assert np.all((a["JOINTS_0"][used] == 0) | (a["WEIGHTS_0"][used] == 0))
+        expected_joints = np.zeros(len(expected["positions"]), dtype=int)
+        expected_joints[expected["allocated"]] = expected["joints"]
+        assert np.all(
+            (
+                a["JOINTS_0"][indices[active]]
+                == expected_joints[wanted[active]][:, :, None]
+            )
+            | (a["WEIGHTS_0"][indices[active]] == 0)
+        ), "A decoration lost its intended native bone weights"
+        cursor = 0
+        for part in geometry["assets"][label]["parts"]:
+            count = len(approved_parts[part])
+            joint = 0
+            if part.startswith(
+                ("LuxeShoulderSocketRing_", "LuxeElbowStar_", "LuxeElbowMoon_")
+            ):
+                joint = 1 if part.endswith("_-1") else 2
+            selected = indices[active][cursor : cursor + count]
+            assert np.all(
+                (a["JOINTS_0"][selected] == joint) | (a["WEIGHTS_0"][selected] == 0)
+            ), part
+            cursor += count
+        assert cursor == int(active.sum())
         normal = np.zeros_like(expected["positions"])
         normal[expected["allocated"]] = expected["normals"]
         assert np.allclose(
@@ -466,10 +510,11 @@ assert (
     and len(listing)
     == 2
     * (
-        11
+        10
         + len(front_labels)
-        + int(PANEL_RETRACTION_FIX)
+        + 4 * int(PANEL_RETRACTION_FIX)
         + (2 + len(ITEMS)) * int(AUTO_ARM_BLOCKER)
+        + len(SAMPLES) * int(MODEL_STYLE == "luxe")
     )
     + 1
 )
@@ -488,12 +533,13 @@ report["offline_checks"] = [
     "original control and printer transforms retained",
     "material helper bytecode and offsets verified",
     f"cooked geometry matches the selected {MODEL_STYLE} model; original body UVs unchanged",
-    "new visible meshes root weighted and collision disabled",
+    "new visible meshes use their declared native bones; collision disabled",
     "all 2380 animated native triangles preserved",
     "actual native drone mount shape and normals retained; its rim uses main socket palette UV and material",
     f"{len(listing)} PAK entries independently extracted and byte matched",
 ]
 report["resource_order"] = resource_order
+verify_material_samples(assets)
 from verify_behaviors import check_behaviors
 
 report["offline_checks"].extend(check_behaviors(assets, geometry))
@@ -503,6 +549,9 @@ report["offline_checks"].extend(check_printer(assets))
 from verify_panel_retraction import check_panel_retraction
 
 report["offline_checks"].extend(check_panel_retraction(assets))
+from verify_catalog_completion import check_completion
+
+report["offline_checks"].extend(check_completion(assets))
 from verify_preferences import check_preferences
 
 report["offline_checks"].extend(check_preferences(assets))

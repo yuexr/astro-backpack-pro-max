@@ -68,9 +68,8 @@ def add_visual_components(d, front_parts, corpse=False):
             )
         )["RelativeLocation"]
     )
-    cx = json.loads((OUT / "geometry-report.json").read_text())[
-        "socket_centre_native_x"
-    ]
+    geometry = json.loads((OUT / "geometry-report.json").read_text())
+    cx = geometry["socket_centre_native_x"]
     specifications = []
     for n in range(16):
         y = (-40 if n % 2 == 0 else 40) if n < 8 else (-18 if n % 2 == 0 else 18)
@@ -85,7 +84,9 @@ def add_visual_components(d, front_parts, corpse=False):
     components = []
     for variable, mesh_part, scale_value, centre in specifications:
         variable = name(variable)
-        components.append(variable)
+        fixed_material = geometry["assets"].get(mesh_part, {}).get("fixed_material")
+        if not fixed_material:
+            components.append(variable)
         pkg = imp(PKG + mesh_part, 0, "Package")
         asset = imp(mesh_part, pkg, "SkeletalMesh", "/Script/Engine")
         e = copy.deepcopy(mesh)
@@ -101,6 +102,19 @@ def add_visual_components(d, front_parts, corpse=False):
             prop("Bool", "bUseAttachParentBound", True),
             prop("Bool", "bReceivesDecals", False),
         ]
+        if fixed_material:
+            material_pkg = imp(fixed_material, 0, "Package")
+            material = imp(
+                fixed_material.rsplit("/", 1)[-1],
+                material_pkg,
+                "MaterialInstanceConstant",
+                "/Script/Engine",
+            )
+            override = prop(
+                "Array", "OverrideMaterials", [prop("Object", "0", material)]
+            )
+            override["ArrayType"] = "ObjectProperty"
+            e["Data"].append(override)
         body = copy.deepcopy(data["BodyInstance"]) if "BodyInstance" in data else None
         if body is None:
             donor = json.loads(
@@ -171,6 +185,8 @@ def add_visual_components(d, front_parts, corpse=False):
                 component_parent = mesh_node
                 location(d, e, centre)
         e["CreateBeforeSerializationDependencies"] = [asset]
+        if fixed_material:
+            e["CreateBeforeSerializationDependencies"].append(material)
         comp = append(e)
         node = copy.deepcopy(mesh_node)
         node.update(
@@ -216,6 +232,8 @@ def add_visual_components(d, front_parts, corpse=False):
     valid = imp("IsValid", system, "Function")
     scene = imp("SceneComponent", engine)
     visible = imp("SetVisibility", scene, "Function")
+    skinned = imp("SkinnedMeshComponent", engine)
+    master_pose = imp("SetMasterPoseComponent", skinned, "Function")
     astro = imp("/Script/Astro", 0, "Package")
     statics = imp("AstroStatics", astro)
     creative = imp("IsCreativeMode", statics, "Function")
@@ -259,6 +277,19 @@ def add_visual_components(d, front_parts, corpse=False):
     body = [
         ex("EX_JumpIfNot", CodeOffset=0, BooleanExpression=call(valid, var(mesh_name)))
     ]
+    for mesh_part, specification in geometry["assets"].items():
+        if specification.get("follows_shoulder_pose"):
+            variable = "Compact_" + mesh_part
+            body.append(
+                ex(
+                    "EX_JumpIfNot",
+                    CodeOffset=0,
+                    BooleanExpression=call(valid, var(variable)),
+                )
+            )
+            body.append(
+                ctx(var(variable), call(master_pose, var(mesh_name), ex("EX_False")))
+            )
     for variable in components:
         body.append(
             ex(
@@ -312,6 +343,7 @@ def add_visual_components(d, front_parts, corpse=False):
         valid,
         visible,
         creative,
+        master_pose,
     ]
     fn["SerializationBeforeSerializationDependencies"] = []
     fn["CreateBeforeCreateDependencies"] = [cls_id]

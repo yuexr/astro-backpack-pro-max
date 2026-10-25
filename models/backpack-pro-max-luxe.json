@@ -1,0 +1,13 @@
+{
+  "version": "0.3.0-test.7 luxe draft 07, palette casing marker",
+  "socket_centre_native_x": -12.680012702941895,
+  "battery_back_shift": 1.41842727662,
+  "workflow": "Approved mesh export is the game build input; Blender is an optional inspection copy.",
+  "geometry_frozen_from": "0.1.9-r1",
+  "approved_base_binary_sha256": "49615813f5936cf0d40a5c720da787ae61f686c21380ef2add8c08d3a3567068",
+  "approved_model_document_sha256": "5ae240ecec1c67e4e8a05c533e83ccf048b6f93104b7d9d441d326eb75b18b66",
+  "source_draft": "Luxe-Draft-07",
+  "base_glb_sha256": "492d0b455b115642eb08a05bccb756fb118235d9cb50b503e9449b4242afc902",
+  "added_triangles": 790,
+  "fixed_gold_material": "/Game/Mods/CompactBackpack16/LuxeGoldSatin"
+}
