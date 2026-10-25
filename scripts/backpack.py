@@ -249,6 +249,7 @@ def build():
                 patch_backpack_slots(d)
         write_asset(d, "Astro/Content/" + asset + ".uasset", asset.rsplit("/", 1)[-1])
     from auto_arm import SNAIL, TOOL
+    from auto_arm_items import ITEMS
 
     if AUTO_ARM_BLOCKER:
         from auto_arm import assets
@@ -256,7 +257,7 @@ def build():
         for label, document, target in assets():
             write_asset(document, target + ".uasset", label)
     else:
-        for target in [TOOL, SNAIL]:
+        for target in [TOOL, SNAIL, *ITEMS]:
             for suffix in [".uasset", ".uexp"]:
                 stale = STAGE / (target + suffix)
                 if stale.exists():
@@ -291,7 +292,7 @@ def build():
     if AUTO_ARM_BLOCKER:
         metadata["name"] += " + Auto-arm Blocker"
         metadata["description"] += (
-            " Blocks auto-arm input to player slots and feeding carried galastropods."
+            " Blocks auto-arm input to player slots and the slots on carried equipment and galastropods."
         )
     (STAGE / "metadata.json").write_text(json.dumps(metadata, indent=2))
     pak = OUT / PAK_NAME

@@ -9,6 +9,7 @@ import subprocess
 
 import numpy as np
 from asset_io import HERE, es, gltf, prop, ps, xyz
+from auto_arm_items import ITEMS
 from game_assets import ENV, GUI, REPAK, UMODEL
 from settings import (
     AUTO_ARM_BLOCKER,
@@ -158,43 +159,24 @@ for label, path, corpse in [
                 assert type_(actual.pop(index - 1)) == "EX_LocalFinalFunction"
             added = 10 * count
         if n == "CLIENT Printer View":
-            from kismet import kismet_size
+            from blueprint import replace_instruction
+            from printer_tooltip import APPLY_OUTPUT
 
-            # Only the native output-tooltip decision changes. Undo that gate
-            # and its branch relocation before comparing the rest byte for byte.
-            gated = actual[47]["AssignmentExpression"]
-            assert d["Imports"][-gated["StackNode"] - 1]["ObjectName"] == "BooleanAND"
-            hidden = gated["Parameters"][1]
-            assert d["Imports"][-hidden["StackNode"] - 1]["ObjectName"] == "Not_PreBool"
-            getter = hidden["Parameters"][0]
-            assert type_(getter) == "EX_LocalFinalFunction"
-            assert d["Exports"][getter["StackNode"] - 1]["ObjectName"] == (
-                "BPM_IsPrinterTooltipHidden"
-            )
-            native = gated["Parameters"][0]
-            delta = kismet_size(gated) - kismet_size(native)
-            added += delta
-            old_end = sum(map(kismet_size, expected[:48]))
-            actual[47]["AssignmentExpression"] = native
-
-            def undo_relocation(value, old_end=old_end, delta=delta):
-                if isinstance(value, dict):
-                    for key, child in value.items():
-                        if key in [
-                            "CodeOffset",
-                            "PushingAddress",
-                            "EndGotoOffset",
-                            "NextOffset",
-                        ]:
-                            if child >= old_end + delta:
-                                value[key] = child - delta
-                        else:
-                            undo_relocation(child)
-                elif isinstance(value, list):
-                    for child in value:
-                        undo_relocation(child)
-
-            undo_relocation(actual)
+            # Only the two native output state requests are wrapped. Restore
+            # them (and their jump offsets) before the byte-for-byte comparison.
+            repaired = copy.deepcopy(ex[n])
+            assert actual[47] == expected[47]
+            for index, visible in [(81, False), (49, True)]:
+                call = actual[index]
+                assert type_(call) == "EX_LocalFinalFunction"
+                assert d["Exports"][call["StackNode"] - 1]["ObjectName"] == APPLY_OUTPUT
+                assert call["Parameters"][0] == expected[index]["ObjectExpression"]
+                assert type_(call["Parameters"][1]) == (
+                    "EX_True" if visible else "EX_False"
+                )
+                replace_instruction(repaired, index, copy.deepcopy(expected[index]))
+            added += ex[n]["ScriptBytecodeSize"] - repaired["ScriptBytecodeSize"]
+            actual = repaired["ScriptBytecode"]
             for i in [1, 7, 13]:
                 expected[i]["Expression"]["Value"] = 0.001
             for i in [4, 10, 16]:
@@ -483,7 +465,12 @@ assert (
     sorted(listing) == expected
     and len(listing)
     == 2
-    * (11 + len(front_labels) + int(PANEL_RETRACTION_FIX) + 2 * int(AUTO_ARM_BLOCKER))
+    * (
+        11
+        + len(front_labels)
+        + int(PANEL_RETRACTION_FIX)
+        + (2 + len(ITEMS)) * int(AUTO_ARM_BLOCKER)
+    )
     + 1
 )
 for member in listing:
@@ -524,6 +511,9 @@ report["printer_tooltip_verified"] = True
 from verify_auto_arm import check_auto_arm
 
 report["offline_checks"].extend(check_auto_arm(assets))
+from verify_auto_arm_items import check_equipment
+
+report["offline_checks"].extend(check_equipment(assets))
 report["auto_arm_verified"] = AUTO_ARM_BLOCKER
 from verify_visual_events import check_visual_events
 

@@ -16,6 +16,7 @@ BUTTON = "BPM_EyeButton"
 HIDDEN = "BPM_PrinterTooltipHidden"
 TOGGLE = "BPM_TogglePrinterTooltip"
 GET_HIDDEN = "BPM_IsPrinterTooltipHidden"
+APPLY_OUTPUT = "BPM_SetPrinterOutputTooltip"
 
 
 def renamed(document, replacements):
@@ -390,6 +391,91 @@ def printer_head():
     return document
 
 
+def output_tooltip_mode(editor, hidden, getter):
+    """Let the native focus handler reveal a hidden recipe on hover."""
+    engine = editor.imp("/Script/Engine", kind="Package")
+    astro = editor.imp("/Script/Astro", kind="Package")
+    tooltip_class = editor.imp("TooltipComponent", astro)
+    system = editor.imp("KismetSystemLibrary", engine)
+    valid = editor.imp("IsValid", system, "Function")
+    focus = editor.imp("GetHasFocus", tooltip_class, "Function")
+    state = editor.imp("SetDesiredTooltipState", tooltip_class, "Function")
+    fid = len(editor.d["Exports"]) + 1
+    tooltip = editor.ex("EX_LocalVariable", Variable=editor.ptr("OutputTooltip", fid))
+    enabled = editor.ex("EX_LocalVariable", Variable=editor.ptr("OutputVisible", fid))
+
+    def mode(value):
+        pointer = editor.ptr("VisibilityControl", tooltip_class)
+        target = editor.ctx(tooltip, editor.ex("EX_InstanceVariable", Variable=pointer))
+        target["RValuePointer"] = copy.deepcopy(pointer)
+        return editor.ex(
+            "EX_Let",
+            Value=pointer,
+            Variable=target,
+            Expression=editor.ex("EX_ByteConst", Value=value),
+        )
+
+    def desired(value):
+        return editor.ctx(
+            tooltip, editor.call(state, editor.ex("EX_ByteConst", Value=value))
+        )
+
+    # ETooltipVisibilityControl: ShowOnFocus=0, Custom=7.
+    # Set one desired state, avoiding a transient show/hide animation sequence.
+    body = [
+        editor.guard(editor.call(valid, tooltip)),  # 0 -> return
+        editor.guard(enabled),  # 1 -> disabled
+        editor.guard(editor.call(getter, local=True)),  # 2 -> always visible
+        mode(0),  # 3: native hover mode
+        editor.guard(editor.ctx(tooltip, editor.call(focus))),  # 4 -> no focus
+        desired(2),  # 5: already hovered
+        editor.ex("EX_Jump", CodeOffset=0),  # 6 -> return
+        desired(0),  # 7: hidden until focus
+        editor.ex("EX_Jump", CodeOffset=0),  # 8 -> return
+        mode(7),
+        desired(2),  # 9,10: toggle on
+        editor.ex("EX_Jump", CodeOffset=0),  # 11 -> return
+        mode(7),
+        desired(0),  # 12,13: printer closed/no output
+    ]
+    assert editor.function(APPLY_OUTPUT, body) == fid
+    fn = editor.d["Exports"][fid - 1]
+    offsets = [0]
+    for expression in fn["ScriptBytecode"]:
+        offsets.append(offsets[-1] + kismet_size(expression))
+    for instruction, destination in {1: 12, 2: 9, 4: 7, 6: 14, 8: 14, 11: 14}.items():
+        fn["ScriptBytecode"][instruction]["CodeOffset"] = offsets[destination]
+    native_view = es(editor.d)["CLIENT Printer View"]
+    parameter = copy.deepcopy(
+        next(
+            p
+            for p in native_view["LoadedProperties"]
+            if p["Name"] == "PrinterOutputSlotTooltipComponent"
+        )
+    )
+    parameter.update(
+        Name=editor.name("OutputTooltip"),
+        PropertyClass=tooltip_class,
+        PropertyFlags="CPF_Parm",
+        RepIndex=0,
+        RepNotifyFunc="None",
+    )
+    enabled_field = copy.deepcopy(
+        next(p for p in editor.cls["LoadedProperties"] if p["Name"] == hidden)
+    )
+    enabled_field.update(
+        Name=editor.name("OutputVisible"),
+        PropertyFlags="CPF_Parm",
+        RepIndex=0,
+        RepNotifyFunc="None",
+    )
+    fn["LoadedProperties"] = [parameter, enabled_field]
+    fn["CreateBeforeSerializationDependencies"] = sorted(
+        (set(fn["CreateBeforeSerializationDependencies"]) | {tooltip_class}) - {fid}
+    )
+    return fid
+
+
 def patch_backpack(document):
     editor = Blueprint(document)
     editor.bool_field(HIDDEN, False)
@@ -408,10 +494,10 @@ def patch_backpack(document):
     getter["FunctionFlags"] += ", FUNC_BlueprintPure, FUNC_Const"
     imports = {e["ObjectName"]: -i - 1 for i, e in enumerate(document["Imports"])}
     printer_view = es(document)["CLIENT Printer View"]
-    # Decide once, before native code asks the tooltip to animate. Collapsing it
-    # after the native show request restarts its badge animation every update.
+    # Keep the native printer/recipe gate. Change only how its output tooltip
+    # is presented: always shown, hover only, or fully disabled when put away.
     code = printer_view["ScriptBytecode"]
-    gate = copy.deepcopy(code[47])
+    gate = code[47]
     assert gate["VariableExpression"]["Variable"]["New"]["Path"] == [
         "CallFunc_BooleanAND_ReturnValue"
     ]
@@ -421,15 +507,24 @@ def patch_backpack(document):
         ["PrinterVisible"],
         ["REP_ShowPrinterOutputSlotTooltip"],
     ]
-    gate["AssignmentExpression"] = editor.call(
-        imports["BooleanAND"],
-        original,
-        editor.call(
-            imports["Not_PreBool"], editor.call(getter_id, local=True), math=True
-        ),
-        math=True,
-    )
-    replace_instruction(printer_view, 47, gate)
+    apply_id = output_tooltip_mode(editor, HIDDEN, getter_id)
+    for index, visible in [(81, False), (49, True)]:
+        native = code[index]
+        assert (
+            native["ContextExpression"]["StackNode"]
+            == imports["SetDesiredTooltipState"]
+        )
+        replace_instruction(
+            printer_view,
+            index,
+            editor.call(
+                apply_id,
+                copy.deepcopy(native["ObjectExpression"]),
+                editor.ex("EX_True" if visible else "EX_False"),
+                local=True,
+            ),
+        )
+    printer_view["CreateBeforeSerializationDependencies"].append(apply_id)
     printer_view_id = document["Exports"].index(printer_view) + 1
     editor.function(
         TOGGLE,

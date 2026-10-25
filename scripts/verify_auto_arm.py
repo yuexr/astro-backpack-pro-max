@@ -65,14 +65,22 @@ class VM:
             index = value(self.eval(expr["ArrayIndex"]))
             assert 0 <= index < len(array), "Unguarded slot access"
             return Ref(array, index)
-        if kind in ("EX_LetObj", "EX_LetBool"):
-            target = self.eval(expr["VariableExpression"])
-            new_value = value(self.eval(expr["AssignmentExpression"]))
+        if kind in ("EX_LetObj", "EX_LetBool", "EX_Let"):
+            target = self.eval(
+                expr["Variable"] if kind == "EX_Let" else expr["VariableExpression"]
+            )
+            new_value = value(
+                self.eval(
+                    expr["Expression"]
+                    if kind == "EX_Let"
+                    else expr["AssignmentExpression"]
+                )
+            )
             target.set(new_value)
             if kind == "EX_LetBool":
                 self.writes.append(target.key)
             return None
-        if kind in ("EX_FinalFunction", "EX_LocalFinalFunction"):
+        if kind in ("EX_FinalFunction", "EX_LocalFinalFunction", "EX_CallMath"):
             node = expr["StackNode"]
             args = [value(self.eval(p)) for p in expr["Parameters"]]
             if node > 0:
@@ -87,6 +95,21 @@ class VM:
                 return args[0] is not None and not args[0].get("invalid", False)
             if name == "Array_Length":
                 return len(args[0])
+            if name == "Array_Contains":
+                return args[1] in args[0]
+            if name == "Array_AddUnique":
+                if args[1] not in args[0]:
+                    args[0].append(args[1])
+                return args[0].index(args[1])
+            if name == "Array_Clear":
+                args[0].clear()
+                return None
+            if name == "Less_IntInt":
+                return args[0] < args[1]
+            if name == "Add_IntInt":
+                return args[0] + args[1]
+            if name == "BooleanOR":
+                return args[0] or args[1]
             if name == "Greater_IntInt":
                 return args[0] > args[1]
             if name == "EqualEqual_NameName":
@@ -109,25 +132,43 @@ class VM:
             == function["ScriptBytecodeSize"]
         )
         try:
-            for expr in function["ScriptBytecode"]:
+            code = function["ScriptBytecode"]
+            offsets = {}
+            offset = 0
+            for index, expr in enumerate(code):
+                offsets[offset] = index
+                offset += kismet_size(expr)
+            index = 0
+            steps = 0
+            while index < len(code):
+                expr = code[index]
+                steps += 1
+                assert steps < 10000, "Blueprint loop failed to finish"
                 if op_type(expr) == "EX_Return":
                     return
                 if op_type(expr) == "EX_JumpIfNot":
-                    assert expr["CodeOffset"] == function["ScriptBytecodeSize"] - 3
                     if not value(self.eval(expr["BooleanExpression"])):
-                        return
+                        index = offsets[expr["CodeOffset"]]
+                        continue
+                elif op_type(expr) == "EX_Jump":
+                    index = offsets[expr["CodeOffset"]]
+                    continue
                 else:
                     self.eval(expr)
+                index += 1
         finally:
             self.locals, self.context = prior_locals, prior_context
 
 
 def check_auto_arm(assets):
     if not AUTO_ARM_BLOCKER:
+        from auto_arm_items import ITEMS
+
         assert (
             "SmallDeform" not in assets
             and "TerrariumSnail_CrackableActor" not in assets
         )
+        assert not {path.rsplit("/", 1)[-1] for path in ITEMS} & assets.keys()
         assert not any(
             e["ObjectName"].startswith(PREFIX)
             for d in assets.values()
@@ -253,5 +294,5 @@ def check_auto_arm(assets):
         "auto arms blocked in sixteen main, two auxiliary and three terrain-tool slots; corpse settings retained",
         "terrain-tool and galastropod native gameplay bytecode preserved except the declared initialization hook",
         "carried-snail startup, transfer, spawn and release cases pass; manual feeding fields and existing seeds retained",
-        "auto-arm blocker is event driven, without timers or world searches; base build omits both added overrides",
+        "auto-arm blocker is event driven, without timers or world searches; base build omits its added overrides",
     ]

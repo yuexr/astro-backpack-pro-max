@@ -8,7 +8,7 @@ import numpy as np
 from asset_io import HERE, es, gltf, ps, xyz
 from game_assets import UMODEL
 from kismet import kismet_size, op_type
-from printer_tooltip import BUTTON, GET_HIDDEN, HIDDEN, TOGGLE
+from printer_tooltip import APPLY_OUTPUT, BUTTON, GET_HIDDEN, HIDDEN, TOGGLE
 from settings import OUT, PRINTER_ICON_SCALE
 from verify_behaviors import VM
 
@@ -21,6 +21,34 @@ class PrinterVM(VM):
 
         if name in [LOAD, SAVE]:
             return
+        if name == APPLY_OUTPUT:
+            function = es(self.d)[name]
+            local = {
+                p["Name"]: value for p, value in zip(function["LoadedProperties"], args)
+            }
+            offsets = {}
+            offset = 0
+            for index, expression in enumerate(function["ScriptBytecode"]):
+                offsets[offset] = index
+                offset += kismet_size(expression)
+            assert offset == function["ScriptBytecodeSize"]
+            index = 0
+            while True:
+                expression = function["ScriptBytecode"][index]
+                kind = op_type(expression)
+                if kind == "EX_Return":
+                    return
+                if kind == "EX_Jump" or (
+                    kind == "EX_JumpIfNot"
+                    and not self.eval(
+                        expression["BooleanExpression"], self.actor, local
+                    )
+                ):
+                    index = offsets[expression["CodeOffset"]]
+                    continue
+                if kind != "EX_JumpIfNot":
+                    self.eval(expression, self.actor, local)
+                index += 1
         return super().run(name, args)
 
     def native_view(self):
@@ -62,6 +90,8 @@ class PrinterVM(VM):
                 obj["state"] = args[0]
                 self.actor["state_requests"].append(args[0])
                 return
+            if fn == "GetHasFocus":
+                return obj.get("focus", False)
             if fn == "CLIENT Printer View":
                 return self.native_view()
             if kind == "EX_CallMath":
@@ -121,6 +151,13 @@ def check_printer(assets):
     assert (
         sum(map(kismet_size, getter["ScriptBytecode"])) == getter["ScriptBytecodeSize"]
     )
+    apply = exports[APPLY_OUTPUT]
+    assert "FUNC_Net" not in apply["FunctionFlags"]
+    assert [p["Name"] for p in apply["LoadedProperties"]] == [
+        "OutputTooltip",
+        "OutputVisible",
+    ]
+    assert all(p["PropertyFlags"] == "CPF_Parm" for p in apply["LoadedProperties"])
     view = exports["CLIENT Printer View"]
     assert sum(map(kismet_size, view["ScriptBytecode"])) == view["ScriptBytecodeSize"]
     for label in [TOGGLE]:
@@ -167,6 +204,15 @@ def check_printer(assets):
     actor["PrinterVisible"] = True
     vm.native_view()
     assert actor["state_requests"] == [0] * 102 and actor[HIDDEN]
+    assert actor["output"]["VisibilityControl"] == 0
+    # A hidden output uses the engine's hover mode, with one state request per
+    # update. Mouse focus never changes the preference or runs a save callback.
+    for focus in [True, False, True, False]:
+        actor["output"]["focus"] = focus
+        actor["state_requests"].clear()
+        vm.native_view()
+        assert actor["state_requests"] == [2 if focus else 0]
+        assert actor[HIDDEN] and actor["output"]["VisibilityControl"] == 0
     actor["PrinterVisible"] = False
     vm.run(TOGGLE)
     assert actor["output"]["state"] == 0 and not actor[HIDDEN]
@@ -192,15 +238,20 @@ def check_printer(assets):
     for visible in [False, True]:
         for recipe in [False, True]:
             for hidden in [False, True]:
-                case = fresh()
-                case.update(
-                    PrinterVisible=visible, REP_ShowPrinterOutputSlotTooltip=recipe
-                )
-                case[HIDDEN] = hidden
-                PrinterVM(backpack, case).native_view()
-                assert case["state_requests"] == [
-                    2 if visible and recipe and not hidden else 0
-                ]
+                for focus in [False, True]:
+                    case = fresh()
+                    case.update(
+                        PrinterVisible=visible, REP_ShowPrinterOutputSlotTooltip=recipe
+                    )
+                    case[HIDDEN] = hidden
+                    case["output"]["focus"] = focus
+                    PrinterVM(backpack, case).native_view()
+                    assert case["state_requests"] == [
+                        2 if visible and recipe and (not hidden or focus) else 0
+                    ]
+                    assert case["output"]["VisibilityControl"] == (
+                        0 if visible and recipe and hidden else 7
+                    )
 
     head = assets["Printhead_Backpack"]
     hx = es(head)
@@ -412,7 +463,7 @@ def check_printer(assets):
     return [
         "eye button uses native left sound when hiding and right when showing; no recipe navigation",
         "tooltip starts visible; its hide setting is local and not replicated",
-        "hidden tooltip receives only collapsed requests across 100 updates, recipe changes, closing and missing tooltips",
+        "hidden output uses native hover-only visibility; focused/unfocused, closed-printer and missing-output cases pass without transient show/hide requests",
         "remote backpacks cannot change the local tooltip preference",
         "existing printer components, rounded button shape and material colours preserved",
         "approved 41-triangle info disc matches cooked mesh; native casing and white glyph UV retained",

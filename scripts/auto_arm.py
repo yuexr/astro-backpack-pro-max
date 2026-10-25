@@ -1,4 +1,4 @@
-"""auto-arm blocker for player slots and carried snails"""
+"""auto-arm blocker for player slots and carried equipment"""
 
 import copy
 
@@ -206,6 +206,8 @@ def patch_snail(document):
 
 
 def assets():
+    from auto_arm_items import assets as equipment_assets
+
     tool = extract(TOOL)
     patch_tool(tool)
     snail = extract(SNAIL)
@@ -213,4 +215,4 @@ def assets():
     return [
         ("SmallDeform", tool, TOOL),
         ("TerrariumSnail_CrackableActor", snail, SNAIL),
-    ]
+    ] + equipment_assets()

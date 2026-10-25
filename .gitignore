@@ -13,3 +13,4 @@ scripts/native-connected-parts.json
 build/
 .ruff_cache/
 /CHANGELOG.md
+/README.md

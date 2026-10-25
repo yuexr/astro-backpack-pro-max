@@ -129,6 +129,12 @@ def check_preferences(assets):
         vm.native_view()
         assert actor[HIDDEN] and actor["state_requests"] == [0]
         assert vm.reads == 1 and vm.writes == 0
+        for focused in [True, False, True, False]:
+            actor["output"]["focus"] = focused
+            vm.native_view()
+            assert actor["output"]["state"] == (2 if focused else 0)
+            assert actor["output"]["VisibilityControl"] == 0
+            assert actor[HIDDEN] and vm.reads == 1 and vm.writes == 0
     vm.run(TOGGLE)
     assert not actor[HIDDEN] and json.loads(disk[SLOT + ".sav"])[FIELD] is False
     assert PreferenceVM(document, fresh(), disk).run(GET_HIDDEN) is False
