@@ -63,7 +63,34 @@ def load_model():
         )
         material = doc["materials"][primitive["material"]]["name"]
         assert material in palette or material in fixed, material
-        if material in fixed:
+        native_uv = None
+        if (
+            doc["materials"][primitive["material"]]
+            .get("extras", {})
+            .get("preserveNativeSurfaceUV")
+        ):
+            uv_accessor = doc["accessors"][primitive["attributes"]["TEXCOORD_0"]]
+            uv_view = doc["bufferViews"][uv_accessor["bufferView"]]
+            native_uv = (
+                np.frombuffer(
+                    data,
+                    "<f4",
+                    count=uv_accessor["count"] * 2,
+                    offset=start
+                    + uv_view.get("byteOffset", 0)
+                    + uv_accessor.get("byteOffset", 0),
+                )
+                .reshape(-1, 2)
+                .astype(float)
+            )
+            assert len(native_uv) == len(points)
+        if native_uv is not None:
+            joined, indices = np.unique(
+                np.column_stack([points, native_uv]), axis=0, return_inverse=True
+            )
+            vertices = joined[:, :3]
+            native_uv = joined[:, 3:]
+        elif material in fixed:
             # Keep each gold face separate so the raised facets stay sharp.
             vertices, indices = points, np.arange(len(points))
         else:
@@ -76,6 +103,8 @@ def load_model():
                 "f": indices.reshape(-1, 3),
             }
         )
+        if native_uv is not None:
+            pieces[-1]["uv"] = native_uv
     _, attrs, indices = gltf(HERE / "exports/Models/backpack_mk2/backpack_mk2.gltf")
     positions = attrs["POSITION"][:, [0, 2, 1]] * 100
     groups = json.loads((HERE / "mesh-parts.json").read_text())["parts"]

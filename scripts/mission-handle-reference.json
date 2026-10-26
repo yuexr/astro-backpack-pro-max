@@ -1,0 +1,26 @@
+{
+  "source_asset": "/Game/Animations/ControlPanels/ControlPanelMission/ControlPanelMissionBackpack_skinned",
+  "source_uexp_sha256": "02a79aeffa3ec0073325db35371d39e60b71630ca2e36ce8dc71313847276e53",
+  "handle_triangles": 264,
+  "handle_vertices": 156,
+  "uv0_min": [
+    0.953125,
+    0.533203125
+  ],
+  "uv0_max": [
+    0.96142578125,
+    0.55029296875
+  ],
+  "uv0_distinct": 139,
+  "uv1_distinct": 1,
+  "material": "palette_exo_suits_master / shared player palette",
+  "previous_uv_constant": [
+    0.9296875,
+    0.7119140625
+  ],
+  "palettes_to_test": [
+    "Morel Code",
+    "Galactic"
+  ],
+  "gameplay_verified": false
+}

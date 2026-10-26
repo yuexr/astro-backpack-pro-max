@@ -576,5 +576,9 @@ from verify_vehicle_visuals import check_vehicle_visuals
 
 report["offline_checks"].extend(check_vehicle_visuals(assets, geometry))
 report["vehicle_visuals_verified"] = True
+from verify_glow import check_glow
+
+report["offline_checks"].extend(check_glow(assets, geometry))
+report["glow_verified"] = True
 (OUT / "build-report.json").write_text(json.dumps(report, indent=2))
 print(f"{VERSION}: {len(report['offline_checks'])} offline checks passed.")

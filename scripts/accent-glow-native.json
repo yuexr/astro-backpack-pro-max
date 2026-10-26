@@ -1,0 +1,59 @@
+{
+  "exe_sha256": "4a57b4b1ac64defa09ea6d6c987d5e513d79243a2b33ab05cba099ad1e377675",
+  "functions": [
+    {
+      "function": "CreateDynamicMaterialInstance",
+      "owner": "PrimitiveComponent",
+      "name_pointer_rva": "0x6320db0",
+      "owner_getter_rva": "0x3f45bd0"
+    },
+    {
+      "function": "K2_GetVectorParameterValue",
+      "owner": "MaterialInstanceConstant",
+      "name_pointer_rva": "0x6312ee0",
+      "owner_getter_rva": "0x3f0ff10"
+    },
+    {
+      "function": "K2_GetVectorParameterValue",
+      "owner": "MaterialInstanceDynamic",
+      "name_pointer_rva": "0x6313180",
+      "owner_getter_rva": "0x3f101d0"
+    },
+    {
+      "function": "SetVectorParameterValue",
+      "owner": "MaterialInstanceDynamic",
+      "name_pointer_rva": "0x6313450",
+      "owner_getter_rva": "0x3f101d0"
+    },
+    {
+      "function": "GetBaseMaterial",
+      "owner": "MaterialInterface",
+      "name_pointer_rva": "0x63135f0",
+      "owner_getter_rva": "0x3f107e0"
+    },
+    {
+      "function": "GetObjectName",
+      "owner": "KismetSystemLibrary",
+      "name_pointer_rva": "0x6309bb0",
+      "owner_getter_rva": "0x3eda700"
+    },
+    {
+      "function": "NotEqual_StriStri",
+      "owner": "KismetStringLibrary",
+      "name_pointer_rva": "0x6307440",
+      "owner_getter_rva": "0x3ed11e0"
+    },
+    {
+      "function": "Multiply_LinearColorFloat",
+      "owner": "KismetMathLibrary",
+      "name_pointer_rva": "0x6300270",
+      "owner_getter_rva": "0x3ea7b80"
+    },
+    {
+      "function": "BooleanOR",
+      "owner": "KismetMathLibrary",
+      "name_pointer_rva": "0x62f9150",
+      "owner_getter_rva": "0x3ea7b80"
+    }
+  ]
+}

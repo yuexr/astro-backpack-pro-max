@@ -170,7 +170,7 @@ def build_meshes():
                 np.column_stack([1.46842727662 - v[:, 2], v[:, 0], v[:, 1] - 51])
             )
             faces.extend(piece["f"] + count)
-            uvs.extend([palette[piece["mat"]]] * len(v))
+            uvs.extend(piece["uv"] if "uv" in piece else [palette[piece["mat"]]] * len(v))
             count += len(v)
         v = np.array(verts)
         f = np.array(faces)

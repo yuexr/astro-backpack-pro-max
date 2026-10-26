@@ -250,6 +250,9 @@ def build():
         }
         names = add_inventory_slots(d, corpse)
         configure(d, names, geometry["front_components"], corpse)
+        from accent_glow import patch as patch_accent_glow
+
+        patch_accent_glow(d, corpse)
         if not corpse:
             patch_backpack(d)
             from visual_events import patch_backpack as patch_visual_events

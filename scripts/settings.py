@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-VERSION = "0.3.1"
+VERSION = "0.3.2"
 DEVELOPMENT = "-test." in VERSION
 GAME_BUILD = "1.45.1.0"
 ITEM_SIZE_MULTIPLIER = 0.8
@@ -41,3 +41,6 @@ PRINTER_ICON_SCALE = 0.85
 
 # turn this off if vanilla fixes the catalog/mission log bugs
 PANEL_RETRACTION_FIX = True
+
+# Luxe emissive materials and palette updates.
+GLOW_TEST = MODEL_STYLE == "luxe"

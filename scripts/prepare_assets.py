@@ -29,6 +29,9 @@ def prepare():
         "Astro/Content/Slots/Content/new/slot_t1b_i",
         "Astro/Content/Models/ControlPanels/control_panel_button_round_arrow",
     ]
+    meshes.append(
+        "Astro/Content/Animations/ControlPanels/ControlPanelMission/ControlPanelMissionBackpack_skinned"
+    )
     for asset in meshes:
         source = extract(asset, as_json=False)
         subprocess.run(
