@@ -142,7 +142,7 @@ def check_build_options():
             suffix = ("-Luxe" if style == "luxe" else "") + (
                 "-AutoArm" if blocker else ""
             )
-            assert pak == f"000-BackpackProMax{suffix}-{settings.VERSION}_P.pak"
+            assert pak == f"000-BackpackProMax-{settings.VERSION}_P.pak"
             assert archive == f"Backpack-Pro-Max{suffix}-{settings.VERSION}-Vortex.zip"
             assert ("luxe" in Path(out).parts) == (style == "luxe")
             assert (Path(out).name == "auto-arm") == blocker

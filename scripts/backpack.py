@@ -292,8 +292,7 @@ def build():
     metadata = {
         "schema_version": 2,
         "name": "Backpack Pro Max",
-        # keep the old ID so updates replace the existing mod
-        "mod_id": "CompactBackpack16",
+        "mod_id": "BackpackProMax",
         "author": "yuexr",
         "description": "16 backpack slots, 80% item size and an info button to hide or show the printer recipe tooltip.",
         "version": VERSION,

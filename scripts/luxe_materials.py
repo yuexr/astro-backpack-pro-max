@@ -8,9 +8,9 @@ from settings import MODEL_STYLE, PKG
 
 SOURCE = "Astro/Content/Materials/modules/module_gold_01"
 SAMPLES = {
-    "LuxeGoldSatin": {"metal": 0.4, "roughness": 1.05, "colour": (0.95, 0.64, 0.20)},
-    "LuxeGoldStars": {"metal": 0.4, "roughness": 1.0, "colour": (0.95, 0.64, 0.20)},
-    "LuxeGoldDiamonds": {"metal": 0.4, "roughness": 0.6, "colour": (0.95, 0.64, 0.20)},
+    "LuxeGoldSatin": {"metal": 0.4, "roughness": 1.05, "colour": (0.9473065367331999, 0.5906188409193369, 0.19120168274079138)},
+    "LuxeGoldStars": {"metal": 0.4, "roughness": 1.0, "colour": (0.9473065367331999, 0.5906188409193369, 0.19120168274079138)},
+    "LuxeGoldDiamonds": {"metal": 0.4, "roughness": 0.6, "colour": (0.9473065367331999, 0.5906188409193369, 0.19120168274079138)},
 }
 
 

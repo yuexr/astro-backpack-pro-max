@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-VERSION = "0.3.0"
+VERSION = "0.3.1"
 DEVELOPMENT = "-test." in VERSION
 GAME_BUILD = "1.45.1.0"
 ITEM_SIZE_MULTIPLIER = 0.8
@@ -35,7 +35,7 @@ PKG = "/Game/Mods/CompactBackpack16/"
 VARIANT = ("-Luxe" if MODEL_STYLE == "luxe" else "") + (
     "-AutoArm" if AUTO_ARM_BLOCKER else ""
 )
-PAK_NAME = f"000-BackpackProMax{VARIANT}-{VERSION}_P.pak"
+PAK_NAME = f"000-BackpackProMax-{VERSION}_P.pak"
 ARCHIVE_NAME = f"Backpack-Pro-Max{VARIANT}-{VERSION}-Vortex.zip"
 PRINTER_ICON_SCALE = 0.85
 

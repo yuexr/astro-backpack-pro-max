@@ -89,6 +89,13 @@ def load_model():
         c = positions[indices[i]].mean(0)
         if c[0] < -5.5 and c[2] < 75 and abs(c[1]) < 59:
             keep[i] = False
+    replaced = np.asarray(info.get("native_replaced_triangles", []), dtype=int)
+    if len(replaced):
+        assert MODEL_STYLE == "luxe"
+        assert np.all((replaced >= 0) & (replaced < len(keep)))
+        assert len(np.unique(replaced)) == len(replaced)
+        assert np.all(keep[replaced]), "Only retained native surfaces may be replaced"
+        keep[replaced] = False
     return {
         "parts": pieces,
         "keep": keep,

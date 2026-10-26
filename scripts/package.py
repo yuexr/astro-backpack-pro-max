@@ -2,7 +2,10 @@
 
 import hashlib
 import json
+import subprocess
 import zipfile
+
+from game_assets import REPAK
 
 from settings import (
     ARCHIVE_NAME,
@@ -32,6 +35,8 @@ assert report["event_visuals_verified"] and report["build_options_verified"]
 assert report["vehicle_visuals_verified"]
 pak = OUT / PAK_NAME
 assert hashlib.sha256(pak.read_bytes()).hexdigest() == report["pak_sha256"]
+metadata = json.loads(subprocess.check_output([str(REPAK), "get", str(pak), "metadata.json"]))
+assert pak.name == f"000-{metadata['mod_id']}-{metadata['version']}_P.pak", "PAK filename must match metadata ID and version"
 archive = DIST / ARCHIVE_NAME
 assert not archive.exists(), (
     "ZIP already exists; use a new test version instead of overwriting it"
