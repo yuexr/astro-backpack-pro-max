@@ -14,3 +14,4 @@ build/
 .ruff_cache/
 /CHANGELOG.md
 /README.md
+/models/vanilla-backpack-reference.blend

@@ -41,7 +41,7 @@ if GLOW_TEST:
             },
             "LowerBatteryGlow": {
                 "metal": 0.0,
-                "roughness": 1.0,
+                "roughness": 1.4,
                 "colour": (
                     0.00010718736234124402,
                     0.18014428915439032,

@@ -170,6 +170,9 @@ def configure(d, slot_names, front, corpse=False):
         scale = xyz(p["RelativeScale3D"])
         scale.update(X=0.09, Y=0.09)
         xyz(p["RelativeLocation"]).update(X=geometry["battery_centre_native_x"], Y=0.0)
+        fit=geometry['battery_fit'];overlay=key.startswith('PowerBarOverlay')
+        scale['Z']=fit['overlay_scale_z'] if overlay else fit['ring_scale_z']
+        xyz(p['RelativeLocation'])['Z']=fit['overlay_location_z'] if overlay else fit['ring_location_z']
     if not corpse:
         # hide the old mount mesh; keep the actual drone slot
         setbool(d, ex["Creative Drone Slot_GEN_VARIABLE"], "SlotVisible", False)
@@ -182,6 +185,8 @@ def configure(d, slot_names, front, corpse=False):
             assert abs(printer[i]["Expression"]["Parameters"][1]["Value"] - 0.1) < 1e-7
             printer[i]["Expression"]["Parameters"][1]["Value"] = 0.001
     private_body(d)
+    from battery_gauge import bind_gauge
+    bind_gauge(d)
     add_visual_components(d, front, corpse)
 
 
@@ -227,6 +232,9 @@ def build():
                 if old.exists():
                     old.unlink()
     meshes, geometry = build_meshes()
+    from battery_gauge import gauge_asset
+    gauge_label,gauge_document=gauge_asset(geometry['battery_dividers'])
+    write_asset(gauge_document,f'Astro/Content/Mods/CompactBackpack16/{gauge_label}.uasset',gauge_label)
     from luxe_materials import assets as material_samples
 
     for label, document in material_samples():

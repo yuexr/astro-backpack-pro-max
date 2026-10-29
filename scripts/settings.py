@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-VERSION = "0.3.2"
+VERSION = "0.3.3-test.14"
 DEVELOPMENT = "-test." in VERSION
 GAME_BUILD = "1.45.1.0"
 ITEM_SIZE_MULTIPLIER = 0.8

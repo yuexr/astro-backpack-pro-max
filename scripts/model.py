@@ -84,12 +84,24 @@ def load_model():
                 .astype(float)
             )
             assert len(native_uv) == len(points)
+        authored_normal = None
+        if mesh.get("extras", {}).get("preserveAuthoredNormals"):
+            na = doc["accessors"][primitive["attributes"]["NORMAL"]]
+            nv = doc["bufferViews"][na["bufferView"]]
+            authored_normal = np.frombuffer(data, "<f4", count=na["count"] * 3,
+                offset=start + nv.get("byteOffset", 0) + na.get("byteOffset", 0)).reshape(-1, 3).astype(float)
+            assert len(authored_normal) == len(points)
+            assert np.allclose(np.linalg.norm(authored_normal, axis=1), 1, atol=1e-5)
         if native_uv is not None:
             joined, indices = np.unique(
-                np.column_stack([points, native_uv]), axis=0, return_inverse=True
+                np.column_stack([points, native_uv] + ([authored_normal] if authored_normal is not None else [])), axis=0, return_inverse=True
             )
             vertices = joined[:, :3]
-            native_uv = joined[:, 3:]
+            native_uv = joined[:, 3:5]
+            if authored_normal is not None:authored_normal = joined[:, 5:8]
+        elif authored_normal is not None:
+            joined, indices = np.unique(np.column_stack([points, authored_normal]),axis=0,return_inverse=True)
+            vertices, authored_normal = joined[:,:3], joined[:,3:6]
         elif material in fixed:
             # Keep each gold face separate so the raised facets stay sharp.
             vertices, indices = points, np.arange(len(points))
@@ -105,6 +117,8 @@ def load_model():
         )
         if native_uv is not None:
             pieces[-1]["uv"] = native_uv
+        if authored_normal is not None:
+            pieces[-1]["normal"] = authored_normal
     _, attrs, indices = gltf(HERE / "exports/Models/backpack_mk2/backpack_mk2.gltf")
     positions = attrs["POSITION"][:, [0, 2, 1]] * 100
     groups = json.loads((HERE / "mesh-parts.json").read_text())["parts"]

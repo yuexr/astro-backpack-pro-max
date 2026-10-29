@@ -1,9 +1,1009 @@
 {
-  "version": "0.1.10 base model",
+  "version": "0.3.3-test.14 base",
   "socket_centre_native_x": -12.680012702941895,
   "battery_back_shift": 1.41842727662,
   "workflow": "Approved mesh export is the game build input; Blender is an optional inspection copy.",
   "geometry_frozen_from": "0.1.9-r1",
-  "approved_base_binary_sha256": "e2dea063f1194f55c46913196996eff5eaed737157c7c239914bbb908ce3ed23",
-  "approved_model_document_sha256": "5aea016df1d401198e1e748cf00f9f34e84e8047ce135f5fd7b0440c0a8be4e2"
+  "approved_base_binary_sha256": "53204211639afb456a6aa47b408ac0dd5ec919f422465f581eff5e400b4ce3bd",
+  "approved_model_document_sha256": "f6180480adecb01949a2965a0e088e0bd4df301f99e7c49d7ef66f851fb2b525",
+  "shell_uv_policy": {
+    "native_asset": "/Game/Models/backpack_mk2/backpack_mk2",
+    "native_triangles": [
+      3002,
+      3004
+    ],
+    "native_uv_channel": 0,
+    "native_uv_corners": [
+      [
+        0.93212890625,
+        0.071533203125
+      ],
+      [
+        0.90478515625,
+        0.0714111328125
+      ],
+      [
+        0.9306640625,
+        0.047027587890625
+      ],
+      [
+        0.90478515625,
+        0.047943115234375
+      ]
+    ],
+    "projection_bounds": [
+      [
+        -0.5249899625778198,
+        -0.22602145373821259,
+        0.0592203363776207
+      ],
+      [
+        0.5249899625778198,
+        1.2170562744140625,
+        0.20881572365760803
+      ]
+    ],
+    "projection_axes": "GLB X horizontal, Y vertical, Z depth; dominant-face box projection",
+    "source_base_shell_point": [
+      0.970703125,
+      0.09100341796875
+    ],
+    "luxe_point_exceptions": [
+      "SmoothFrontBase",
+      "LowerBatteryAccentMount",
+      "LuxeElbowStar_SettingShell_-1",
+      "LuxeElbowMoon_SettingShell_1"
+    ],
+    "model_uv_baked": true,
+    "runtime_processing_added": false,
+    "mode": "base",
+    "mapped_parts": [
+      "SmoothFrontBase",
+      "Pad_-1_0",
+      "Pad_-1_1",
+      "Pad_-1_2",
+      "Pad_-1_3",
+      "Pad_1_0",
+      "Pad_1_1",
+      "Pad_1_2",
+      "Pad_1_3",
+      "BatteryTopCasing",
+      "BatteryBottomCasing",
+      "LowerBatteryAccentMount"
+    ],
+    "point_sample_parts": []
+  },
+  "pad_smoothing_revision": {
+    "parts": {
+      "Pad_-1_0": {
+        "root_corners": 48,
+        "flat_faces": 14,
+        "inner_bevel_faces": 32
+      },
+      "Pad_-1_1": {
+        "root_corners": 48,
+        "flat_faces": 14,
+        "inner_bevel_faces": 32
+      },
+      "Pad_-1_2": {
+        "root_corners": 48,
+        "flat_faces": 14,
+        "inner_bevel_faces": 32
+      },
+      "Pad_-1_3": {
+        "root_corners": 48,
+        "flat_faces": 14,
+        "inner_bevel_faces": 32
+      },
+      "Pad_1_0": {
+        "root_corners": 48,
+        "flat_faces": 14,
+        "inner_bevel_faces": 32
+      },
+      "Pad_1_1": {
+        "root_corners": 48,
+        "flat_faces": 14,
+        "inner_bevel_faces": 32
+      },
+      "Pad_1_2": {
+        "root_corners": 48,
+        "flat_faces": 14,
+        "inner_bevel_faces": 32
+      },
+      "Pad_1_3": {
+        "root_corners": 48,
+        "flat_faces": 14,
+        "inner_bevel_faces": 32
+      }
+    },
+    "front_face": "SmoothFrontBase",
+    "root_depth": 0.09349998,
+    "inner_face_depth": 0.1273300051689148,
+    "root_normals": [
+      0,
+      0,
+      1
+    ],
+    "inner_face_normals": [
+      0,
+      0,
+      1
+    ],
+    "inner_join_sharp": true
+  },
+  "battery_fit": {
+    "lower_model_y": 0.014999999664723873,
+    "upper_model_y": 1.0679999589920044,
+    "ring_local_bounds": [
+      -0.5,
+      100.5
+    ],
+    "ring_scale_z": 1.0425742171557233,
+    "ring_location_z": -48.978712924949754,
+    "overlay_scale_z": 1.1612206214521907,
+    "overlay_location_z": -48.978712924949754,
+    "preview_scale_ratio": 1.0233235820208693,
+    "preview_old_location_z": -47.79059399254989,
+    "native_child_classes_unchanged": false,
+    "ticks": 10,
+    "native_parent_functions_unchanged": true
+  },
+  "authored_normal_parts": [
+    "BatteryBottomCasing",
+    "BatteryBottomTubeEyelet_-1",
+    "BatteryBottomTubeEyelet_1",
+    "BatteryBottomTubeRecess_-1",
+    "BatteryBottomTubeRecess_1",
+    "BatteryTopCasing",
+    "BatteryTopTubeEyelet_-1",
+    "BatteryTopTubeEyelet_1",
+    "BatteryTopTubeRecess_-1",
+    "BatteryTopTubeRecess_1",
+    "LowerBatteryAccentMount",
+    "Pad_-1_0",
+    "Pad_-1_1",
+    "Pad_-1_2",
+    "Pad_-1_3",
+    "Pad_1_0",
+    "Pad_1_1",
+    "Pad_1_2",
+    "Pad_1_3",
+    "SmoothFrontBase",
+    "SmoothFrontBaseSideEdge"
+  ],
+  "joined_battery_casings": {
+    "BatteryTopCasing": {
+      "triangles": 122,
+      "vertices": 65,
+      "smoothing_angle_degrees": 45
+    },
+    "BatteryBottomCasing": {
+      "triangles": 122,
+      "vertices": 65,
+      "smoothing_angle_degrees": 45
+    }
+  },
+  "battery_end_revision": {
+    "BatteryTopCasing": {
+      "triangles": 122,
+      "removed_triangles": 78,
+      "flat_inner_end_y": 1.0679999589920044,
+      "retained_bevel": "top",
+      "straight_body_centre_y": 1.1365281343460083
+    },
+    "BatteryBottomCasing": {
+      "triangles": 122,
+      "removed_triangles": 78,
+      "flat_inner_end_y": 0.014999999664723873,
+      "retained_bevel": "bottom",
+      "straight_body_centre_y": -0.099510726518929
+    }
+  },
+  "power_mount_shading_revision": {
+    "front_plane_z": 0.20881572365760803,
+    "front_triangles": 26,
+    "flat_front_normals": [
+      0,
+      0,
+      1
+    ],
+    "separate_from_bevel": true
+  },
+  "test8_changed_glb_parts": [
+    "BatteryBottomCasing",
+    "BatteryCell_0",
+    "BatteryCell_1",
+    "BatteryCell_2",
+    "BatteryCell_3",
+    "BatteryCell_4",
+    "BatteryCell_5",
+    "BatteryCell_6",
+    "BatteryCell_7",
+    "BatteryCell_8",
+    "BatteryCell_9",
+    "BatterySeparator_0",
+    "BatterySeparator_1",
+    "BatterySeparator_10",
+    "BatterySeparator_2",
+    "BatterySeparator_3",
+    "BatterySeparator_4",
+    "BatterySeparator_5",
+    "BatterySeparator_6",
+    "BatterySeparator_7",
+    "BatterySeparator_8",
+    "BatterySeparator_9",
+    "BatteryTopCasing",
+    "LowerBatteryAccentMount"
+  ],
+  "battery_divider_revision": {
+    "diameter_model": 0.10400000214576721,
+    "casing_diameters_model": [
+      0.10400000214576721,
+      0.10400000214576721
+    ],
+    "native_cylinder_diameter": 100.0,
+    "native_spacer_instance_xy": 1.100000023841858,
+    "backpack_gauge_scale_xy": 0.09000000357627869,
+    "spacer_component_scale_xy": 1.0505050076670646,
+    "private_child_class": "BackpackPowerBar_C",
+    "parts": [
+      "BatterySeparator_0",
+      "BatterySeparator_1",
+      "BatterySeparator_10",
+      "BatterySeparator_2",
+      "BatterySeparator_3",
+      "BatterySeparator_4",
+      "BatterySeparator_5",
+      "BatterySeparator_6",
+      "BatterySeparator_7",
+      "BatterySeparator_8",
+      "BatterySeparator_9"
+    ],
+    "preview_radial_scale_ratios": {
+      "BatterySeparator_0": 1.090146794403255,
+      "BatterySeparator_1": 1.090146794403255,
+      "BatterySeparator_10": 1.090146794403255,
+      "BatterySeparator_2": 1.090146794403255,
+      "BatterySeparator_3": 1.090146794403255,
+      "BatterySeparator_4": 1.090146794403255,
+      "BatterySeparator_5": 1.090146794403255,
+      "BatterySeparator_6": 1.090146794403255,
+      "BatterySeparator_7": 1.090146794403255,
+      "BatterySeparator_8": 1.090146794403255,
+      "BatterySeparator_9": 1.090146794403255
+    },
+    "native_cells_unchanged": true
+  },
+  "test9_changed_glb_parts": [
+    "BatterySeparator_0",
+    "BatterySeparator_1",
+    "BatterySeparator_10",
+    "BatterySeparator_2",
+    "BatterySeparator_3",
+    "BatterySeparator_4",
+    "BatterySeparator_5",
+    "BatterySeparator_6",
+    "BatterySeparator_7",
+    "BatterySeparator_8",
+    "BatterySeparator_9",
+    "BatteryTopTubeEyelet_-1",
+    "BatteryTopTubeEyelet_1"
+  ],
+  "battery_solid_casing_revision": {
+    "BatteryTopCasing": {
+      "before_triangles": 202,
+      "triangles": 126,
+      "closed_tube_ports": true,
+      "retained_outer_end_triangles": 78,
+      "retained_inner_cap_triangles": 16,
+      "straight_wall_triangles": 32
+    },
+    "BatteryBottomCasing": {
+      "before_triangles": 202,
+      "triangles": 126,
+      "closed_tube_ports": true,
+      "retained_outer_end_triangles": 78,
+      "retained_inner_cap_triangles": 16,
+      "straight_wall_triangles": 32
+    }
+  },
+  "source_preview_revision": {
+    "request": "Merge casing/support outer surfaces, remove hidden overlap, continuous UV unwrap; Luxe oxygen caps use tubing material; audit side comparisons; authorized package/commit/push",
+    "changed_parts": [
+      "BatteryBottomCasing",
+      "BatteryBottomTubeEyelet_-1",
+      "BatteryBottomTubeRecess_-1",
+      "BatteryTopCasing",
+      "BatteryTopTubeEyelet_-1",
+      "BatteryTopTubeRecess_-1"
+    ],
+    "added_parts": [],
+    "removed_parts": [
+      "BatteryTopSupport",
+      "BatteryBottomSupport"
+    ],
+    "production_checks_require_update": false
+  },
+  "superseded_revision_metadata": {
+    "top_tube_eyelet_revision": {
+      "parts": [
+        "BatteryTopTubeEyelet_-1",
+        "BatteryTopTubeEyelet_1"
+      ],
+      "material": "eyelet",
+      "same_as": "BinderEyelet_-1_0",
+      "bottom_eyelets_unchanged": true
+    },
+    "release_label_correction": {
+      "release_version": "0.3.3-test.13",
+      "embedded_package_version": "0.3.3-test.18",
+      "package_contents_unchanged": true
+    }
+  },
+  "front_ribbon_backface_revision": {
+    "part": "SmoothFrontBaseSideEdge",
+    "retained_wall_triangles": 56,
+    "added_rear_triangles": 26,
+    "total_triangles": 82,
+    "rear_depth": 0.058873072266578674,
+    "rear_normal": [
+      0,
+      0,
+      -1
+    ],
+    "wall_geometry_and_normals_unchanged": true,
+    "bevel_restored": false,
+    "back_edge_sharp": true
+  },
+  "user_blender_tweaks_revision": {
+    "source_sha256": "6f9fcdd5b3e5957d5a82c52777af0e22a47683fe402126f9ded55bdf7f666421",
+    "parts": [
+      "BatteryTopSupport",
+      "BatteryBottomSupport",
+      "BatteryTopCasing",
+      "BatteryBottomCasing",
+      "SmoothFrontBase",
+      "SmoothFrontBaseSideEdge"
+    ],
+    "part_details": {
+      "BatteryTopSupport": {
+        "triangles": 12,
+        "original_correspondence_error": 0.0,
+        "bounds": [
+          [
+            -0.05199999734759331,
+            1.068000078201294,
+            0.05887471139431
+          ],
+          [
+            0.052000004798173904,
+            1.2044343948364258,
+            0.13850000500679016
+          ]
+        ],
+        "authored_normal_policy_preserved": false,
+        "uvs_and_material_unchanged": true
+      },
+      "BatteryBottomSupport": {
+        "triangles": 12,
+        "original_correspondence_error": 0.0,
+        "bounds": [
+          [
+            -0.0520000085234642,
+            -0.21305616199970245,
+            0.05933577939867973
+          ],
+          [
+            0.052000001072883606,
+            0.015000000596046448,
+            0.13850000500679016
+          ]
+        ],
+        "authored_normal_policy_preserved": false,
+        "uvs_and_material_unchanged": true
+      },
+      "BatteryTopCasing": {
+        "triangles": 126,
+        "original_correspondence_error": 3.725290298461914e-09,
+        "bounds": [
+          [
+            -0.05199999734759331,
+            1.0679999589920044,
+            0.08649999648332596
+          ],
+          [
+            0.052000004798173904,
+            1.2164667844772339,
+            0.19050000607967377
+          ]
+        ],
+        "authored_normal_policy_preserved": true,
+        "uvs_and_material_unchanged": true
+      },
+      "BatteryBottomCasing": {
+        "triangles": 126,
+        "original_correspondence_error": 3.839941346661803e-09,
+        "bounds": [
+          [
+            -0.052000001072883606,
+            -0.2249893844127655,
+            0.08649999648332596
+          ],
+          [
+            0.052000001072883606,
+            0.014999999664723873,
+            0.19050000607967377
+          ]
+        ],
+        "authored_normal_policy_preserved": true,
+        "uvs_and_material_unchanged": true
+      },
+      "SmoothFrontBase": {
+        "triangles": 26,
+        "original_correspondence_error": 0.0,
+        "bounds": [
+          [
+            -0.5249899625778198,
+            -0.21410080790519714,
+            0.09349998086690903
+          ],
+          [
+            0.5249899625778198,
+            1.2054684162139893,
+            0.09349998086690903
+          ]
+        ],
+        "authored_normal_policy_preserved": true,
+        "uvs_and_material_unchanged": true
+      },
+      "SmoothFrontBaseSideEdge": {
+        "triangles": 82,
+        "original_correspondence_error": 0.0,
+        "bounds": [
+          [
+            -0.5249899625778198,
+            -0.21410080790519714,
+            0.058873072266578674
+          ],
+          [
+            0.5249899625778198,
+            1.2054684162139893,
+            0.09349998086690903
+          ]
+        ],
+        "authored_normal_policy_preserved": true,
+        "uvs_and_material_unchanged": true
+      }
+    },
+    "joined_front_split_by_material": true,
+    "existing_model_specific_materials_and_uvs_preserved": true,
+    "native_battery_gauge_endpoints_unchanged": true
+  },
+  "front_alignment_revision": {
+    "centre": [
+      0.0,
+      0.49568910151720047
+    ],
+    "radius_x": 0.09259000420570374,
+    "radius_y": 0.09259000420570374,
+    "segments_per_corner": 6,
+    "contour_vertices": 28,
+    "all_four_corners_equal": true
+  },
+  "casing_support_smoothing_revision": {
+    "Top": {
+      "straight_wall_tangent_normal": "same +/-X as support side",
+      "geometry_unchanged": true,
+      "inner_caps_sharp": true
+    },
+    "Bottom": {
+      "straight_wall_tangent_normal": "same +/-X as support side",
+      "geometry_unchanged": true,
+      "inner_caps_sharp": true
+    }
+  },
+  "battery_tube_collar_revision": {
+    "BatteryTopTubeEyelet_-1": {
+      "eyelet_triangles": 96,
+      "recess_triangles": 14,
+      "segments": 12,
+      "hidden_underside_omitted": true,
+      "inner_clearance": 0.0009210609503145124,
+      "binder_material": "Vanilla front casing sides",
+      "recess_material": "dark",
+      "tube_axis": [
+        -0.780429519718648,
+        0.6252437642645627,
+        0.0
+      ],
+      "tube_axis_origin": [
+        -0.03500000014901161,
+        1.146299958229065,
+        0.13668427616357803
+      ],
+      "tube_radius": 0.015500001609325409,
+      "entry_centre": [
+        -0.051638829791544286,
+        1.1596302131922607,
+        0.13668427616357803
+      ],
+      "visible_rim_width": 0.0022,
+      "previous_rim_width": 0.009545455423268404,
+      "rim_width_reduction_fraction": 0.7695238307187326,
+      "opening_radius": 0.019090910846536812,
+      "minimum_radial_clearance": 0.0004780598153787674,
+      "maximum_surface_protrusion": 0.0048,
+      "profile_heights": [
+        0.0003,
+        0.0025,
+        0.0048,
+        0.0048,
+        0.0008
+      ],
+      "projection": "casing/support surface normal; draft.3 height, draft.4 thin rim",
+      "profile_smoothing_degrees": 100,
+      "fit": "next rear casing edge / narrowed support union"
+    },
+    "BatteryBottomTubeEyelet_-1": {
+      "eyelet_triangles": 96,
+      "recess_triangles": 14,
+      "segments": 12,
+      "hidden_underside_omitted": true,
+      "inner_clearance": 0.0009205336011709371,
+      "binder_material": "Vanilla front casing sides",
+      "recess_material": "dark",
+      "tube_axis": [
+        -0.7798811131000334,
+        -0.6259276710849689,
+        0.0
+      ],
+      "tube_axis_origin": [
+        -0.03500000014901161,
+        -0.15680000185966492,
+        0.13668427616357803
+      ],
+      "tube_radius": 0.015500001609325409,
+      "entry_centre": [
+        -0.051638829791544286,
+        -0.17015422176932718,
+        0.13668427616357803
+      ],
+      "visible_rim_width": 0.0022,
+      "previous_rim_width": 0.009545455423268404,
+      "rim_width_reduction_fraction": 0.7695238307187326,
+      "opening_radius": 0.019090910846536812,
+      "minimum_radial_clearance": 0.00040896429030351164,
+      "maximum_surface_protrusion": 0.0048,
+      "profile_heights": [
+        0.0003,
+        0.0025,
+        0.0048,
+        0.0048,
+        0.0008
+      ],
+      "projection": "casing/support surface normal; draft.3 height, draft.4 thin rim",
+      "profile_smoothing_degrees": 100,
+      "fit": "next rear casing edge / narrowed support union"
+    },
+    "BatteryTopTubeEyelet_1": {
+      "eyelet_triangles": 96,
+      "recess_triangles": 14,
+      "segments": 12,
+      "hidden_underside_omitted": true,
+      "inner_clearance": 0.0009210609503144569,
+      "binder_material": "Vanilla front casing sides",
+      "recess_material": "dark",
+      "tube_axis": [
+        0.780429519718648,
+        0.6252437642645627,
+        0.0
+      ],
+      "tube_axis_origin": [
+        0.03500000014901161,
+        1.146299958229065,
+        0.13668427616357803
+      ],
+      "tube_radius": 0.015500001609325409,
+      "entry_centre": [
+        0.051638829791544286,
+        1.1596302131922607,
+        0.13668427616357803
+      ],
+      "visible_rim_width": 0.0022,
+      "previous_rim_width": 0.009545455423268404,
+      "rim_width_reduction_fraction": 0.7695238307187326,
+      "opening_radius": 0.019090910846536812,
+      "minimum_radial_clearance": 0.0004780598153787674,
+      "maximum_surface_protrusion": 0.0048,
+      "profile_heights": [
+        0.0003,
+        0.0025,
+        0.0048,
+        0.0048,
+        0.0008
+      ],
+      "projection": "casing/support surface normal; draft.3 height, draft.4 thin rim",
+      "profile_smoothing_degrees": 100,
+      "fit": "next rear casing edge / narrowed support union"
+    },
+    "BatteryBottomTubeEyelet_1": {
+      "eyelet_triangles": 96,
+      "recess_triangles": 14,
+      "segments": 12,
+      "hidden_underside_omitted": true,
+      "inner_clearance": 0.0009205336011709302,
+      "binder_material": "Vanilla front casing sides",
+      "recess_material": "dark",
+      "tube_axis": [
+        0.7798811131000334,
+        -0.6259276710849689,
+        0.0
+      ],
+      "tube_axis_origin": [
+        0.03500000014901161,
+        -0.15680000185966492,
+        0.13668427616357803
+      ],
+      "tube_radius": 0.015500001609325409,
+      "entry_centre": [
+        0.051638829791544286,
+        -0.17015422176932718,
+        0.13668427616357803
+      ],
+      "visible_rim_width": 0.0022,
+      "previous_rim_width": 0.009545455423268404,
+      "rim_width_reduction_fraction": 0.7695238307187326,
+      "opening_radius": 0.019090910846536812,
+      "minimum_radial_clearance": 0.00040896429030351164,
+      "maximum_surface_protrusion": 0.0048,
+      "profile_heights": [
+        0.0003,
+        0.0025,
+        0.0048,
+        0.0048,
+        0.0008
+      ],
+      "projection": "casing/support surface normal; draft.3 height, draft.4 thin rim",
+      "profile_smoothing_degrees": 100,
+      "fit": "next rear casing edge / narrowed support union"
+    }
+  },
+  "power_mount_outline_revision": {
+    "triangles": 220,
+    "depths_unchanged": true,
+    "bevel_profile_preserved": true,
+    "straight_outline_edges": true
+  },
+  "battery_width_alignment_revision": {
+    "BatteryTopCasing": {
+      "before": [
+        -0.05199999734759331,
+        0.052000004798173904
+      ],
+      "after": [
+        -0.052000001072883606,
+        0.052000001072883606
+      ],
+      "width": 0.10400000214576721
+    },
+    "BatteryBottomCasing": {
+      "before": [
+        -0.052000001072883606,
+        0.052000001072883606
+      ],
+      "after": [
+        -0.052000001072883606,
+        0.052000001072883606
+      ],
+      "width": 0.10400000214576721
+    },
+    "BatteryTopSupport": {
+      "before": [
+        -0.05199999734759331,
+        0.052000004798173904
+      ],
+      "after": [
+        -0.052000001072883606,
+        0.052000001072883606
+      ],
+      "width": 0.10400000214576721
+    },
+    "BatteryBottomSupport": {
+      "before": [
+        -0.0520000085234642,
+        0.052000001072883606
+      ],
+      "after": [
+        -0.052000001072883606,
+        0.052000001072883606
+      ],
+      "width": 0.10400000214576721
+    },
+    "BatteryBacking": {
+      "before": [
+        -0.04609239101409912,
+        0.04598268121480942
+      ],
+      "after": [
+        -0.052000001072883606,
+        0.052000001072883606
+      ],
+      "width": 0.10400000214576721
+    }
+  },
+  "front_support_reveal_revision": {
+    "support_top_y": 1.2044343948364258,
+    "support_bottom_y": -0.21305616199970245,
+    "panel_bottom_y": -0.21285615861415863,
+    "panel_top_y": 1.2042343616485596,
+    "requested_gap": 0.0002,
+    "corner_radius_unchanged": true
+  },
+  "battery_support_edge_revision": {
+    "Top": {
+      "casing_vertex_right": [
+        0.048041731119155884,
+        0.11860045790672302
+      ],
+      "casing_vertex_left": [
+        -0.048041731119155884,
+        0.11860045790672302
+      ],
+      "x_limits": [
+        -0.048041731119155884,
+        0.048041731119155884
+      ],
+      "front_depth": 0.11860045790672302,
+      "previous_front_depth": 0.13850000500679016,
+      "shared_join_normals": {
+        "-1": [
+          -0.9807852686437133,
+          0.0,
+          -0.19509038113520388
+        ],
+        "1": [
+          0.9807852686437133,
+          0.0,
+          -0.19509038113520388
+        ]
+      }
+    },
+    "Bottom": {
+      "casing_vertex_right": [
+        0.048041731119155884,
+        0.11860045790672302
+      ],
+      "casing_vertex_left": [
+        -0.048041731119155884,
+        0.11860045790672302
+      ],
+      "x_limits": [
+        -0.048041731119155884,
+        0.048041731119155884
+      ],
+      "front_depth": 0.11860045790672302,
+      "previous_front_depth": 0.13850000500679016,
+      "shared_join_normals": {
+        "-1": [
+          -0.9807852686437133,
+          0.0,
+          -0.19509038113520388
+        ],
+        "1": [
+          0.9807852686437133,
+          0.0,
+          -0.19509038113520388
+        ]
+      }
+    }
+  },
+  "packaged_model_revision": "0.3.3-test.14",
+  "left_right_fitting_revision": {
+    "mirrored_geometry_and_normals": true,
+    "profile_and_materials_unchanged": true
+  },
+  "combined_battery_housings": {
+    "BatteryTopCasing": {
+      "triangles": 122,
+      "previous_case_and_support_triangles": 138,
+      "inner_cap_triangles": 11,
+      "support_ledge_triangles": 7,
+      "support_region_bounds": [
+        [
+          -0.048041731119155884,
+          1.068000078201294,
+          0.05887471139431
+        ],
+        [
+          0.048041731119155884,
+          1.2044343948364258,
+          0.11860045790672302
+        ]
+      ],
+      "support_end_y": 1.2044343948364258,
+      "original_bevel_root_y": 1.2045142650604248,
+      "bevel_root_weld_delta": -7.987022399902344e-05,
+      "perimeter": [
+        [
+          0.048041731119155884,
+          0.05887471139431
+        ],
+        [
+          0.048041731119155884,
+          0.11860045790672302
+        ],
+        [
+          0.052000001072883606,
+          0.13850000500679016
+        ],
+        [
+          0.048041731119155884,
+          0.1583995372056961
+        ],
+        [
+          0.036769550293684006,
+          0.17526955902576447
+        ],
+        [
+          0.019899539649486542,
+          0.18654173612594604
+        ],
+        [
+          0.0,
+          0.19050000607967377
+        ],
+        [
+          -0.019899539649486542,
+          0.18654173612594604
+        ],
+        [
+          -0.036769550293684006,
+          0.17526955902576447
+        ],
+        [
+          -0.048041731119155884,
+          0.1583995372056961
+        ],
+        [
+          -0.052000001072883606,
+          0.13850000500679016
+        ],
+        [
+          -0.048041731119155884,
+          0.11860045790672302
+        ],
+        [
+          -0.048041731119155884,
+          0.05887471139431
+        ]
+      ],
+      "perimeter_distances": [
+        0.0,
+        0.059725746512413025,
+        0.08001514955474953,
+        0.10030453798224724,
+        0.1205939366123624,
+        0.1408833238804194,
+        0.16117271961533647,
+        0.18146211535025353,
+        0.20175150261831054,
+        0.22204090124842568,
+        0.2423302896759234,
+        0.2626196927182599,
+        0.32234543923067294,
+        0.4184289014689847
+      ],
+      "uv_origin": [
+        0.912053685381439,
+        0.0595
+      ],
+      "uv_density": 0.03081199504111553,
+      "uv_y_centre": 1.1422333717346191,
+      "hidden_overlap_faces_removed": true,
+      "closed_union": true,
+      "cylinder_centre_z": 0.13850000128149986,
+      "cylinder_radius": 0.052000001072883606
+    },
+    "BatteryBottomCasing": {
+      "triangles": 122,
+      "previous_case_and_support_triangles": 138,
+      "inner_cap_triangles": 11,
+      "support_ledge_triangles": 7,
+      "support_region_bounds": [
+        [
+          -0.048041731119155884,
+          -0.21305616199970245,
+          0.05933577939867973
+        ],
+        [
+          0.048041731119155884,
+          0.015000000596046448,
+          0.11860045790672302
+        ]
+      ],
+      "support_end_y": -0.21305616199970245,
+      "original_bevel_root_y": -0.2130407691001892,
+      "bevel_root_weld_delta": -1.539289951324463e-05,
+      "perimeter": [
+        [
+          0.048041731119155884,
+          0.05933577939867973
+        ],
+        [
+          0.048041731119155884,
+          0.11860045790672302
+        ],
+        [
+          0.052000001072883606,
+          0.13850000500679016
+        ],
+        [
+          0.048041731119155884,
+          0.1583995372056961
+        ],
+        [
+          0.036769550293684006,
+          0.17526955902576447
+        ],
+        [
+          0.019899539649486542,
+          0.18654173612594604
+        ],
+        [
+          0.0,
+          0.19050000607967377
+        ],
+        [
+          -0.019899539649486542,
+          0.18654173612594604
+        ],
+        [
+          -0.036769550293684006,
+          0.17526955902576447
+        ],
+        [
+          -0.048041731119155884,
+          0.1583995372056961
+        ],
+        [
+          -0.052000001072883606,
+          0.13850000500679016
+        ],
+        [
+          -0.048041731119155884,
+          0.11860045790672302
+        ],
+        [
+          -0.048041731119155884,
+          0.05933577939867973
+        ]
+      ],
+      "perimeter_distances": [
+        0.0,
+        0.05926467850804329,
+        0.0795540815503798,
+        0.0998434699778775,
+        0.12013286860799266,
+        0.14042225587604967,
+        0.16071165161096673,
+        0.1810010473458838,
+        0.2012904346139408,
+        0.22157983324405595,
+        0.24186922167155367,
+        0.2621586247138902,
+        0.32142330322193347,
+        0.41750676546024523
+      ],
+      "uv_origin": [
+        0.9120678918065034,
+        0.0595
+      ],
+      "uv_density": 0.03081199504111553,
+      "uv_y_centre": -0.10499469237402081,
+      "hidden_overlap_faces_removed": true,
+      "closed_union": true,
+      "cylinder_centre_z": 0.13850000128149986,
+      "cylinder_radius": 0.052000001072883606
+    }
+  }
 }

@@ -193,7 +193,7 @@ def check_glow(assets, geometry):
     _, native, native_indices = gltf(
         HERE / "exports/Models/backpack_mk2/backpack_mk2.gltf"
     )
-    native_position = native["POSITION"][:, [0, 2, 1]] * 100
+    native_position = native["POSITION"][:, [0, 2, 1]].astype(float) * 100
     world = np.column_stack(
         [
             native_position[:, 1] / 100,
@@ -202,18 +202,29 @@ def check_glow(assets, geometry):
         ]
     )
     surfaces = []
-    for index in [3002, 3004]:
+    for index in range(2994, 3012):
         ids = native_indices[index]
         surfaces.append((world[ids][:, [0, 2]], native["TEXCOORD_0"][ids]))
+    shell_parts = set(json.loads(INFO.read_text())["shell_uv_policy"]["mapped_parts"])
     for part in current["parts"]:
         if "uv" not in part:
             continue
         if (
             part["name"].startswith("LuxeOxygenSupportBand_")
             or part["name"] == "LuxeRearStripeShellSurface"
+            or part["name"] in shell_parts  # Independently checked by verify_shell_uv.
         ):
             continue
         assert part["name"] in ["LuxeRearShellSurface", "LuxeYUEEngravingShell"]
+        correction = json.loads(INFO.read_text()).get("rear_uv_correction")
+        if correction:
+            coeff = np.asarray(correction["coefficients"])
+            assert abs(abs(coeff[0, 0] / coeff[1, 0]) - 1) < .002
+            # A single affine field has no internal UV joins or local stretching,
+            # including at the thousands of engraving triangulation vertices.
+            expected = part["v"][:, :2] / 100 * coeff[:, 0] + coeff[:, 1]
+            assert np.allclose(part["uv"], expected, rtol=0, atol=6e-8)
+            continue
         for p, uv in zip(part["v"], part["uv"]):
             choices = []
             for tri, source_uv in surfaces:
@@ -223,9 +234,17 @@ def check_glow(assets, geometry):
                 )
                 choices.append((min(weights), weights @ source_uv))
             score, expected = max(choices, key=lambda x: x[0])
-            assert score > -0.00002 and np.allclose(uv, expected, atol=2e-7, rtol=0)
+            # Float32 model corners may fall microscopically outside the
+            # native facet's very thin corner triangles. Keep their exact UVs.
+            for tri, source_uv in surfaces:
+                distances = np.linalg.norm(tri - [p[0] / 100, p[1] / 100], axis=1)
+                if distances.min() < 1e-7:
+                    score, expected = 0, source_uv[distances.argmin()]
+                    break
+            assert score > -0.00002 and np.allclose(uv, expected, atol=2e-7, rtol=0), (part["name"], p, score, uv, expected)
     info = json.loads(INFO.read_text())
-    assert len(info["native_replaced_triangles"]) == 187
+    assert len(info["native_replaced_triangles"]) == (166 if info.get('raised_rear_stripe_revision') else 200)
+    assert set(range(2994, 3012)).issubset(info["native_replaced_triangles"])
     assert not any(p["name"] == "LuxeYUEEngravingShell" for p in current["parts"]), (
         "Separate engraving insert returned"
     )
@@ -262,6 +281,10 @@ def check_glow(assets, geometry):
     # Flat visible face planes; hidden backing intersects the native cylinder.
     casing = next(p for p in current["parts"] if p["name"] == "BatteryBottomCasing")
     casing_centre = (casing["v"][:, 1].min() + casing["v"][:, 1].max()) / 2
+    if info.get('battery_end_revision'):
+        # The single outer bevel makes the overall bounds asymmetric. The
+        # badge remains centred on the unchanged straight cylinder body.
+        casing_centre=info['battery_end_revision']['BatteryBottomCasing']['straight_body_centre_y']*100
     for name in ["LowerBatteryAccentMount", "LowerBatteryAccent"]:
         part = next(p for p in current["parts"] if p["name"] == name)
         centre = (part["v"][:, 1].min() + part["v"][:, 1].max()) / 2
@@ -283,14 +306,22 @@ def check_glow(assets, geometry):
         assert part["mat"] == "handle_accent" and "uv" in part
         uv = part["uv"]
         assert len(np.unique(uv, axis=0)) > 100, "Band UVs collapsed to one sample"
-        assert np.allclose(uv.min(0), reference["uv0_min"], atol=1e-7, rtol=0)
+        if info.get('support_band_trim_revision'):
+            # Removing the front low leg also removes the handle's lowest-V
+            # samples. The retained surface and new caps stay in its UV island.
+            assert np.all(uv.min(0) >= np.asarray(reference['uv0_min']) - 1e-7)
+            assert abs(uv.min(0)[0] - reference['uv0_min'][0]) < 1e-7
+            assert uv.min(0)[1] > reference['uv0_min'][1]
+        else:
+            assert np.allclose(uv.min(0), reference["uv0_min"], atol=1e-7, rtol=0)
         assert np.allclose(uv.max(0), reference["uv0_max"], atol=1e-7, rtol=0)
         tri = uv[part["f"]]
         a = tri[:, 1] - tri[:, 0]
         b = tri[:, 2] - tri[:, 0]
         twice_area = np.abs(a[:, 0] * b[:, 1] - a[:, 1] * b[:, 0])
         assert np.count_nonzero(twice_area > 1e-10) > len(tri) * 0.9
-    assert materials["LuxeElbowStar_-1"] == "Luxe ornaments gold"
+    left_symbol=info.get('left_moon_comparison',{}).get('part','LuxeElbowStar_-1')
+    assert materials[left_symbol] == "Luxe ornaments gold"
     assert materials["LuxeElbowMoon_1"] == "Luxe ornaments gold"
     stripe_reference = json.loads((HERE / "rear-stripe-reference.json").read_text())
     assert (
@@ -301,24 +332,27 @@ def check_glow(assets, geometry):
         hashlib.sha256(source_mesh.read_bytes()).hexdigest()
         == stripe_reference["source_mesh_uexp_sha256"]
     )
-    selected = stripe_reference["new_native_replacements"]
+    selected = stripe_reference.get('stripe_source_native_triangles',stripe_reference['new_native_replacements'])
     source_triangles = [
         (world[native_indices[i]], native["TEXCOORD_0"][native_indices[i]])
         for i in selected
     ]
     stripe = next(p for p in current["parts"] if p["name"] == "LuxeRearCasingStripe")
-    assert stripe["mat"] == "Luxe ornaments gold"
-    assert stripe["v"][:, 0].min() < -50 and stripe["v"][:, 0].max() > 50
-    assert stripe["v"][:, 2].max() > 0, "Stripe does not reach the side front edges"
-    assert np.all(stripe["v"][:, 1] / 100 >= stripe_reference["low_z"] - 1e-6)
-    assert np.all(stripe["v"][:, 1] / 100 <= stripe_reference["high_z"] + 1e-6)
-    assert abs(np.ptp(stripe["v"][:, 1]) / 100 - 0.018) < 1e-6
-    assert abs(stripe["v"][:, 1].min() / 100 - 0.3322991728782654) < 1e-6, (
+    assert stripe["mat"] == "Luxe stars gold"
+    raised=info.get('raised_rear_stripe_revision')
+    offset=raised['offset_model_units'] if raised else 0.
+    footprint=stripe['v']-stripe['normal']*offset*100 if raised else stripe['v']
+    assert footprint[:, 0].min() < -50 and footprint[:, 0].max() > 50
+    assert footprint[:, 2].max() > 0, "Stripe does not reach the side front edges"
+    assert np.all(footprint[:, 1] / 100 >= stripe_reference["low_z"] - 1e-6)
+    assert np.all(footprint[:, 1] / 100 <= stripe_reference["high_z"] + 1e-6)
+    assert abs(np.ptp(footprint[:, 1]) / 100 - stripe_reference['height']) < 1e-6
+    assert abs(footprint[:, 1].min() / 100 - 0.3322991728782654) < 1e-6, (
         "Gap above native blue band"
     )
 
-    # Every restored surface point remains on an original triangle with its
-    # original UV. Gold stripe vertices are equally coplanar, without an offset.
+    # The raised stripe's footprint remains on the exact original surface;
+    # its outward clearance is independently measured in check_comparisons.
     for part in current["parts"]:
         if part["name"] not in ("LuxeRearStripeShellSurface", "LuxeRearCasingStripe"):
             continue
@@ -327,6 +361,7 @@ def check_glow(assets, geometry):
             for i in [3002, 3004]
         ]
         for j, p in enumerate(part["v"]):
+            if raised and part['name']=='LuxeRearCasingStripe':p=footprint[j]
             point = np.array([p[0] / 100, -p[2] / 100, p[1] / 100])
             choices = []
             for tri, uv in candidates:
@@ -337,11 +372,16 @@ def check_glow(assets, geometry):
                     choices.append((min(weights), weights @ uv))
             assert choices and max(c[0] for c in choices) > -3e-5
             if part["name"] == "LuxeRearStripeShellSurface":
+                correction = info.get("rear_uv_correction")
+                if correction and abs(p[2] / 100 + .255562424659729) < 2e-7:
+                    coeff = np.asarray(correction["coefficients"])
+                    assert np.allclose(part["uv"][j], p[:2] / 100 * coeff[:, 0] + coeff[:, 1], atol=6e-8, rtol=0)
+                    continue
                 assert any(
                     score > -3e-5
                     and np.allclose(part["uv"][j], expected, atol=2e-7, rtol=0)
                     for score, expected in choices
-                )
+                ), (part['name'],j,p,part['uv'][j],choices)
 
     # Gold is restricted to straight vertical engraving walls.
     walls = next(
@@ -368,5 +408,5 @@ def check_glow(assets, geometry):
         "glow material parameters and native function owners verified against the installed executable",
         "accent glow simulated through both palette material types, black colour, rainbow fallback, missing references and 100 refreshes without new material allocation or timers",
         "unified preferred gold, flat inset badge and unchanged borders verified; approved lower-poly Morse on both sides (180 + 156 triangles), taller centred badge and integrated rear/side stripe",
-        "rear surround and engraving floors retain native UVs; oxygen bands use noncollapsed mission-handle atlas UVs",
+        "rear surround and engraving retain continuous precise UVs; front base/outer pads are patterned, inner pad faces/bevels plain, native blue band preserved; oxygen bands retain mission-handle UVs",
     ]

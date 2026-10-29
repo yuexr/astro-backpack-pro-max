@@ -220,6 +220,9 @@ def check_behaviors(assets, geometry):
         return json.loads(b[20 : 20 + n]), b[20 + n :]
 
     from model import INFO, MODEL
+    from verify_shell_uv import check_shell_uv
+
+    check_shell_uv()
 
     newdoc, newbin = read_glb(MODEL)
     reference = json.loads(INFO.read_text())

@@ -29,6 +29,7 @@ assert (
     + 6 * int(PANEL_RETRACTION_FIX)
     + 8 * int(AUTO_ARM_BLOCKER)
     + 4 * int(GLOW_TEST)
+    + 3 + 2 * int(MODEL_STYLE == 'luxe')
     and report["printer_tooltip_verified"]
     and report["printer_preference_verified"]
 )

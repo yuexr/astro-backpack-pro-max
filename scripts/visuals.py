@@ -12,6 +12,8 @@ from asset_io import prop as asset_prop
 from kismet import kismet_size as size
 from settings import OUT, PKG
 
+DRONE_SOCKET_INSET = 2.0  # Outer rim seating; keep the recessed centre above the casing.
+
 
 def add_visual_components(d, front_parts, corpse=False):
     def name(n):
@@ -159,8 +161,8 @@ def add_visual_components(d, front_parts, corpse=False):
         e["Data"].append(scale)
         component_parent = parent
         if variable == "NativeDroneSocket":
-            # Same transform as the native auto-created slot_t1b_i visual:
-            # slot transform plus its local Z=3 offset, scaled by .25.
+            # Keep the actual drone slot unchanged; inset only its visible socket.
+            # The native visual's local Z=3 offset contributes -.75 on backpack Y.
             slot = next(
                 x
                 for x in d["Exports"]
@@ -172,7 +174,7 @@ def add_visual_components(d, front_parts, corpse=False):
                 float(xyz(sp["RelativeLocation"])[k]) - float(body_origin[k])
                 for k in "XYZ"
             ]
-            loc[1] -= 0.75
+            loc[1] += DRONE_SOCKET_INSET - 0.75
             location(d, e, loc)
             e["Data"].append(copy.deepcopy(sp["RelativeRotation"]))
             component_parent = mesh_node
