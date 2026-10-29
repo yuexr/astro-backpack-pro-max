@@ -17,7 +17,10 @@ class VM:
         self.timers = {}
         cls = next(e for e in asset["Exports"] if "ClassExport" in e["$type"])
         for p in cls.get("LoadedProperties", []):
-            if p["Name"].startswith(("BPM_", "Compact_")) and "FObjectProperty" in p["$type"]:
+            if (
+                p["Name"].startswith(("BPM_", "Compact_"))
+                and "FObjectProperty" in p["$type"]
+            ):
                 actor.setdefault(p["Name"], None)
             if p["Name"].startswith("BPM_") and (
                 "FBoolProperty" in p["$type"] or "FByteProperty" in p["$type"]
@@ -51,9 +54,14 @@ class VM:
     def eval(self, x, obj, local):
         t = op_type(x)
         if t == "EX_DynamicCast":
-            target = self.eval(x["Target"],obj,local)
-            class_name = self.d["Imports"][-x["ClassPtr"]-1]["ObjectName"]
-            return target if isinstance(target,dict) and target.get("material_class")==class_name else None
+            target = self.eval(x["Target"], obj, local)
+            class_name = self.d["Imports"][-x["ClassPtr"] - 1]["ObjectName"]
+            return (
+                target
+                if isinstance(target, dict)
+                and target.get("material_class") == class_name
+                else None
+            )
         if t in ["EX_InstanceVariable", "EX_LocalVariable"]:
             n = self.name(x["Variable"])
             return (
@@ -235,9 +243,12 @@ def check_behaviors(assets, geometry):
         hashlib.sha256(canonical).hexdigest()
         == reference["approved_model_document_sha256"]
     ), "model doesn't match its approval file"
-    from settings import GLOW_TEST
-    accent_material = "Luxe accent glow test" if GLOW_TEST else "trim"
-    trim = next(i for i, m in enumerate(newdoc["materials"]) if m["name"] == accent_material)
+    from settings import LUXE_GLOW
+
+    accent_material = "Luxe accent glow test" if LUXE_GLOW else "trim"
+    trim = next(
+        i for i, m in enumerate(newdoc["materials"]) if m["name"] == accent_material
+    )
     assert (
         next(m for m in newdoc["meshes"] if m["name"] == "LowerBatteryAccent")[
             "primitives"

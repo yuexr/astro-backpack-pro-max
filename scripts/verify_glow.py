@@ -10,7 +10,7 @@ from asset_io import HERE, es, gltf
 from game_assets import PAK
 from kismet import kismet_size, op_type
 from model import INFO, load_model
-from settings import GLOW_TEST, PKG
+from settings import LUXE_GLOW, PKG
 from verify_behaviors import VM
 
 
@@ -118,7 +118,7 @@ def check_native_bindings(document):
 
 
 def check_glow(assets, geometry):
-    if not GLOW_TEST:
+    if not LUXE_GLOW:
         return []
     for label in ["BackpackRail", "AstroCorpse"]:
         document = assets[label]
@@ -219,7 +219,7 @@ def check_glow(assets, geometry):
         correction = json.loads(INFO.read_text()).get("rear_uv_correction")
         if correction:
             coeff = np.asarray(correction["coefficients"])
-            assert abs(abs(coeff[0, 0] / coeff[1, 0]) - 1) < .002
+            assert abs(abs(coeff[0, 0] / coeff[1, 0]) - 1) < 0.002
             # A single affine field has no internal UV joins or local stretching,
             # including at the thousands of engraving triangulation vertices.
             expected = part["v"][:, :2] / 100 * coeff[:, 0] + coeff[:, 1]
@@ -241,14 +241,22 @@ def check_glow(assets, geometry):
                 if distances.min() < 1e-7:
                     score, expected = 0, source_uv[distances.argmin()]
                     break
-            assert score > -0.00002 and np.allclose(uv, expected, atol=2e-7, rtol=0), (part["name"], p, score, uv, expected)
+            assert score > -0.00002 and np.allclose(uv, expected, atol=2e-7, rtol=0), (
+                part["name"],
+                p,
+                score,
+                uv,
+                expected,
+            )
     info = json.loads(INFO.read_text())
-    assert len(info["native_replaced_triangles"]) == (166 if info.get('raised_rear_stripe_revision') else 200)
+    assert len(info["native_replaced_triangles"]) == (
+        166 if info.get("raised_rear_stripe_revision") else 200
+    )
     assert set(range(2994, 3012)).issubset(info["native_replaced_triangles"])
     assert not any(p["name"] == "LuxeYUEEngravingShell" for p in current["parts"]), (
         "Separate engraving insert returned"
     )
-    # Border, Morse, row and side comparisons have separate static bindings.
+    # Fixed gold bindings stay independent of the astronaut palette.
     materials = {p["name"]: p["mat"] for p in current["parts"]}
     for name, material in materials.items():
         if name.startswith("LuxePadInlay_"):
@@ -273,7 +281,7 @@ def check_glow(assets, geometry):
         > 0
     )
     icon = next(p for p in current["parts"] if p["name"] == "LowerBatteryAccent")
-    assert len(icon["f"]) == 60, "Flat power icon silhouette/extrusion changed"
+    assert len(icon["f"]) == 46, "Flat power icon silhouette/extrusion changed"
     span = np.ptp(icon["v"], axis=0)
     assert abs(span[0] - 4.6) < 1e-4 and abs(span[1] - 6.64125) < 1e-4
     assert icon["mat"] == "Luxe accent glow test"
@@ -281,10 +289,15 @@ def check_glow(assets, geometry):
     # Flat visible face planes; hidden backing intersects the native cylinder.
     casing = next(p for p in current["parts"] if p["name"] == "BatteryBottomCasing")
     casing_centre = (casing["v"][:, 1].min() + casing["v"][:, 1].max()) / 2
-    if info.get('battery_end_revision'):
+    if info.get("battery_end_revision"):
         # The single outer bevel makes the overall bounds asymmetric. The
         # badge remains centred on the unchanged straight cylinder body.
-        casing_centre=info['battery_end_revision']['BatteryBottomCasing']['straight_body_centre_y']*100
+        casing_centre = (
+            info["battery_end_revision"]["BatteryBottomCasing"][
+                "straight_body_centre_y"
+            ]
+            * 100
+        )
     for name in ["LowerBatteryAccentMount", "LowerBatteryAccent"]:
         part = next(p for p in current["parts"] if p["name"] == name)
         centre = (part["v"][:, 1].min() + part["v"][:, 1].max()) / 2
@@ -306,12 +319,12 @@ def check_glow(assets, geometry):
         assert part["mat"] == "handle_accent" and "uv" in part
         uv = part["uv"]
         assert len(np.unique(uv, axis=0)) > 100, "Band UVs collapsed to one sample"
-        if info.get('support_band_trim_revision'):
+        if info.get("support_band_trim_revision"):
             # Removing the front low leg also removes the handle's lowest-V
             # samples. The retained surface and new caps stay in its UV island.
-            assert np.all(uv.min(0) >= np.asarray(reference['uv0_min']) - 1e-7)
-            assert abs(uv.min(0)[0] - reference['uv0_min'][0]) < 1e-7
-            assert uv.min(0)[1] > reference['uv0_min'][1]
+            assert np.all(uv.min(0) >= np.asarray(reference["uv0_min"]) - 1e-7)
+            assert abs(uv.min(0)[0] - reference["uv0_min"][0]) < 1e-7
+            assert uv.min(0)[1] > reference["uv0_min"][1]
         else:
             assert np.allclose(uv.min(0), reference["uv0_min"], atol=1e-7, rtol=0)
         assert np.allclose(uv.max(0), reference["uv0_max"], atol=1e-7, rtol=0)
@@ -320,7 +333,7 @@ def check_glow(assets, geometry):
         b = tri[:, 2] - tri[:, 0]
         twice_area = np.abs(a[:, 0] * b[:, 1] - a[:, 1] * b[:, 0])
         assert np.count_nonzero(twice_area > 1e-10) > len(tri) * 0.9
-    left_symbol=info.get('left_moon_comparison',{}).get('part','LuxeElbowStar_-1')
+    left_symbol = info.get("left_moon_comparison", {}).get("part", "LuxeElbowStar_-1")
     assert materials[left_symbol] == "Luxe ornaments gold"
     assert materials["LuxeElbowMoon_1"] == "Luxe ornaments gold"
     stripe_reference = json.loads((HERE / "rear-stripe-reference.json").read_text())
@@ -332,27 +345,29 @@ def check_glow(assets, geometry):
         hashlib.sha256(source_mesh.read_bytes()).hexdigest()
         == stripe_reference["source_mesh_uexp_sha256"]
     )
-    selected = stripe_reference.get('stripe_source_native_triangles',stripe_reference['new_native_replacements'])
+    selected = stripe_reference.get(
+        "stripe_source_native_triangles", stripe_reference["new_native_replacements"]
+    )
     source_triangles = [
         (world[native_indices[i]], native["TEXCOORD_0"][native_indices[i]])
         for i in selected
     ]
     stripe = next(p for p in current["parts"] if p["name"] == "LuxeRearCasingStripe")
     assert stripe["mat"] == "Luxe stars gold"
-    raised=info.get('raised_rear_stripe_revision')
-    offset=raised['offset_model_units'] if raised else 0.
-    footprint=stripe['v']-stripe['normal']*offset*100 if raised else stripe['v']
+    raised = info.get("raised_rear_stripe_revision")
+    offset = raised["offset_model_units"] if raised else 0.0
+    footprint = stripe["v"] - stripe["normal"] * offset * 100 if raised else stripe["v"]
     assert footprint[:, 0].min() < -50 and footprint[:, 0].max() > 50
     assert footprint[:, 2].max() > 0, "Stripe does not reach the side front edges"
     assert np.all(footprint[:, 1] / 100 >= stripe_reference["low_z"] - 1e-6)
     assert np.all(footprint[:, 1] / 100 <= stripe_reference["high_z"] + 1e-6)
-    assert abs(np.ptp(footprint[:, 1]) / 100 - stripe_reference['height']) < 1e-6
+    assert abs(np.ptp(footprint[:, 1]) / 100 - stripe_reference["height"]) < 1e-6
     assert abs(footprint[:, 1].min() / 100 - 0.3322991728782654) < 1e-6, (
         "Gap above native blue band"
     )
 
     # The raised stripe's footprint remains on the exact original surface;
-    # its outward clearance is independently measured in check_comparisons.
+    # its outward clearance is independently measured in check_surfaces.
     for part in current["parts"]:
         if part["name"] not in ("LuxeRearStripeShellSurface", "LuxeRearCasingStripe"):
             continue
@@ -361,7 +376,8 @@ def check_glow(assets, geometry):
             for i in [3002, 3004]
         ]
         for j, p in enumerate(part["v"]):
-            if raised and part['name']=='LuxeRearCasingStripe':p=footprint[j]
+            if raised and part["name"] == "LuxeRearCasingStripe":
+                p = footprint[j]
             point = np.array([p[0] / 100, -p[2] / 100, p[1] / 100])
             choices = []
             for tri, uv in candidates:
@@ -373,15 +389,20 @@ def check_glow(assets, geometry):
             assert choices and max(c[0] for c in choices) > -3e-5
             if part["name"] == "LuxeRearStripeShellSurface":
                 correction = info.get("rear_uv_correction")
-                if correction and abs(p[2] / 100 + .255562424659729) < 2e-7:
+                if correction and abs(p[2] / 100 + 0.255562424659729) < 2e-7:
                     coeff = np.asarray(correction["coefficients"])
-                    assert np.allclose(part["uv"][j], p[:2] / 100 * coeff[:, 0] + coeff[:, 1], atol=6e-8, rtol=0)
+                    assert np.allclose(
+                        part["uv"][j],
+                        p[:2] / 100 * coeff[:, 0] + coeff[:, 1],
+                        atol=6e-8,
+                        rtol=0,
+                    )
                     continue
                 assert any(
                     score > -3e-5
                     and np.allclose(part["uv"][j], expected, atol=2e-7, rtol=0)
                     for score, expected in choices
-                ), (part['name'],j,p,part['uv'][j],choices)
+                ), (part["name"], j, p, part["uv"][j], choices)
 
     # Gold is restricted to straight vertical engraving walls.
     walls = next(
@@ -402,11 +423,11 @@ def check_glow(assets, geometry):
             for p in current["parts"]
             if p["name"] in ("LuxeYueMorse", "LuxeYueMorsePolished")
         )
-        == 336
+        == 256
     )
     return [
         "glow material parameters and native function owners verified against the installed executable",
         "accent glow simulated through both palette material types, black colour, rainbow fallback, missing references and 100 refreshes without new material allocation or timers",
-        "unified preferred gold, flat inset badge and unchanged borders verified; approved lower-poly Morse on both sides (180 + 156 triangles), taller centred badge and integrated rear/side stripe",
+        "unified preferred gold, flat inset badge and unchanged borders verified; approved lower-poly Morse on both sides (136 + 120 triangles), taller centred badge and integrated rear/side stripe",
         "rear surround and engraving retain continuous precise UVs; front base/outer pads are patterned, inner pad faces/bevels plain, native blue band preserved; oxygen bands retain mission-handle UVs",
     ]

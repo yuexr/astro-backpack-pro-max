@@ -32,6 +32,36 @@ def precise_uv_buffer(raw, uv):
     return raw
 
 
+def body_uv_buffers(raw, indices, keep, uv, boundary):
+    positions = (
+        np.frombuffer(raw, "<f4", count=N * 3, offset=OFF["position"])
+        .reshape(N, 3)
+        .copy()
+    )
+    packed = (
+        np.frombuffer(raw, "i1", count=N * 8, offset=OFF["tangent"])
+        .reshape(N, 8)
+        .copy()
+    )
+    if boundary.any():
+        normals = packed[:, 4:7].astype(float)
+        normals /= np.linalg.norm(normals, axis=1)[:, None]
+        tangent, sign, mapped = surface_tangents(positions, indices[keep], uv, normals)
+        selected = boundary & mapped
+        packed[selected, :3] = np.round(tangent[selected] * 127).astype("i1")
+        packed[selected, 7] = (sign[selected] * 127).astype("i1")
+        raw[OFF["tangent"] : OFF["tangent"] + packed.nbytes] = packed.tobytes()
+    return {
+        "positions": positions,
+        "indices": indices,
+        "uv": uv,
+        "rear_uv_boundary": boundary,
+        "tangent_buffer": packed,
+        "vertex_sources": np.arange(N),
+        "normal_changed": np.zeros(N, dtype=bool),
+    }
+
+
 def source():
     return json.loads(
         (
@@ -53,7 +83,7 @@ def rename_mesh(d, label, raw):
 
 
 def build_meshes():
-    # the GLB is the source; Blender is just a preview
+    # Read the GLB exported from the editable Blender model.
     model = load_model()
     model_info = json.loads(INFO.read_text())
     _, a, ids = gltf(HERE / "exports/Models/backpack_mk2/backpack_mk2.gltf")
@@ -104,17 +134,26 @@ def build_meshes():
     if MODEL_STYLE == "luxe":
         correction = model_info.get("rear_uv_correction")
         if correction:
-            boundary = (abs(a["POSITION"][:, 0] - .2702467143535614) < 2e-7) & (uv[:,0]>.89) & (uv[:,0]<.95) & (uv[:,1]<.1) & (a['POSITION'][:,1]+.51>=.33229)
-            coordinates = np.column_stack([a["POSITION"][:, 2], a["POSITION"][:, 1] + .51])
+            boundary = (
+                (abs(a["POSITION"][:, 0] - 0.2702467143535614) < 2e-7)
+                & (uv[:, 0] > 0.89)
+                & (uv[:, 0] < 0.95)
+                & (uv[:, 1] < 0.1)
+                & (a["POSITION"][:, 1] + 0.51 >= 0.33229)
+            )
+            coordinates = np.column_stack(
+                [a["POSITION"][:, 2], a["POSITION"][:, 1] + 0.51]
+            )
             for axis, (slope, intercept) in enumerate(correction["coefficients"]):
                 uv[boundary, axis] = coordinates[boundary, axis] * slope + intercept
-        lower = model_info.get('lower_rear_uv')
+        lower = model_info.get("lower_rear_uv")
         if lower:
-            lower_ids=np.asarray(lower['native_vertex_ids'],dtype=int)
-            uv[lower_ids]=np.asarray(lower['uv'],dtype='<f4');boundary[lower_ids]=True
-    from rear_shading import body_buffers
-    body=body_buffers(raw,bodyids,model['keep'],uv,boundary,model_info.get('native_rear_flank_shading'),OFF,N)
-    if body['rear_uv_boundary'].any():raw=precise_uv_buffer(raw,body['uv'])
+            lower_ids = np.asarray(lower["native_vertex_ids"], dtype=int)
+            uv[lower_ids] = np.asarray(lower["uv"], dtype="<f4")
+            boundary[lower_ids] = True
+    body = body_uv_buffers(raw, bodyids, model["keep"], uv, boundary)
+    if body["rear_uv_boundary"].any():
+        raw = precise_uv_buffer(raw, body["uv"])
     result["backpack_mk2"] = rename_mesh(copy.deepcopy(original), "backpack_mk2", raw)
     np.savez(
         OUT / "body-expected.npz",
@@ -199,13 +238,15 @@ def build_meshes():
                 np.column_stack([1.46842727662 - v[:, 2], v[:, 0], v[:, 1] - 51])
             )
             faces.extend(piece["f"] + count)
-            uvs.extend(piece["uv"] if "uv" in piece else [palette[piece["mat"]]] * len(v))
+            uvs.extend(
+                piece["uv"] if "uv" in piece else [palette[piece["mat"]]] * len(v)
+            )
             count += len(v)
             if "normal" in piece:
-                n=piece["normal"]
-                authored_normals.extend(np.column_stack([-n[:,2],n[:,0],n[:,1]]))
+                n = piece["normal"]
+                authored_normals.extend(np.column_stack([-n[:, 2], n[:, 0], n[:, 1]]))
             else:
-                authored_normals.extend(np.zeros((len(v),3)))
+                authored_normals.extend(np.zeros((len(v), 3)))
         v = np.array(verts)
         f = np.array(faces)
         uv = np.array(uvs)
@@ -217,11 +258,32 @@ def build_meshes():
         length = np.linalg.norm(normal, axis=1)
         normal[length < 1e-8] = [1, 0, 0]
         normal /= np.linalg.norm(normal, axis=1)[:, None]
-        provided=np.asarray(authored_normals)
-        use=np.linalg.norm(provided,axis=1)>.5
-        normal[use]=provided[use]
+        provided = np.asarray(authored_normals)
+        use = np.linalg.norm(provided, axis=1) > 0.5
+        normal[use] = provided[use]
         normal /= np.linalg.norm(normal, axis=1)[:, None]
         tangent, handedness, mapped_tangents = surface_tangents(v, f, uv, normal)
+        # Tiny lettering triangles make numeric UV derivatives unstable. The
+        # flat rear face has an affine projection, so its tangent is known.
+        cursor = 0
+        for piece in batch:
+            if piece["name"] == "LuxeRearShellSurface":
+                flat = (
+                    abs(
+                        piece["v"][:, 2] / 100
+                        - model_info["rear_shading_revision"]["flat_plane_z"]
+                    )
+                    < 1e-7
+                )
+                flat &= np.all(abs(piece["normal"] - [0, 0, -1]) < 1e-6, axis=1)
+                selected = cursor + np.flatnonzero(flat)
+                coefficients = np.asarray(
+                    model_info["rear_uv_correction"]["coefficients"]
+                )
+                tangent[selected] = [0, np.sign(coefficients[0, 0]), 0]
+                handedness[selected] = np.sign(coefficients[0, 0] * coefficients[1, 0])
+                mapped_tangents[selected] = True
+            cursor += len(piece["v"])
         raw = bytearray(base64.b64decode(original["Exports"][0]["Extras"]))
         pos = np.zeros((N, 3), "<f4")
         tex = np.zeros((N, 2), "<f2")
@@ -232,7 +294,7 @@ def build_meshes():
         tan[allocated, :3] = np.round(tangent * 127).astype("i1")
         tan[allocated, 3] = 127
         tan[allocated, 4:7] = np.round(normal * 127).astype("i1")
-        tan[allocated, 7] = (handedness * 127).astype('i1')
+        tan[allocated, 7] = (handedness * 127).astype("i1")
         indices = np.zeros_like(ids)
         indices[: len(f)] = allocated[f]
         skin = native_skin.copy()
@@ -280,11 +342,12 @@ def build_meshes():
     _, da, di = gltf(HERE / "exports/Slots/Content/new/slot_t1b_i.gltf")
     dv = da["POSITION"][:, [0, 2, 1]] * 100
     from drone_socket_fit import fit_socket
-    casing_keep=model["keep"].copy()
+
+    casing_keep = model["keep"].copy()
     # Luxe replaces some original casing triangles with identical surface
     # patches. Restore those reference triangles for the contact measurement.
-    replacements=json.loads(INFO.read_text()).get("native_replaced_triangles", [])
-    casing_keep[np.asarray(replacements,dtype=int)]=True
+    replacements = json.loads(INFO.read_text()).get("native_replaced_triangles", [])
+    casing_keep[np.asarray(replacements, dtype=int)] = True
     dv, fit_report = fit_socket(dv, p[ids[casing_keep]])
     (OUT / "drone-fit-report.json").write_text(json.dumps(fit_report, indent=2))
     du = da["TEXCOORD_0"]

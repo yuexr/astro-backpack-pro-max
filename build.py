@@ -66,7 +66,7 @@ def main():
         "verify": ["verify.py"],
         "package": ["verify.py", "package.py"],
     }
-    # one ZIP for testing; release combinations can wait
+    # Test builds package the selected variant.
     if args.command == "build" and DEVELOPMENT:
         steps["build"].append("package.py")
     for script in steps[args.command]:

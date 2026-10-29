@@ -37,13 +37,25 @@ def check_shell_uv():
     exceptions = POINT_EXCEPTIONS if MODEL_STYLE == "luxe" else set()
     revision = json.loads(INFO.read_text()).get("front_mapping_revision")
     if revision and MODEL_STYLE == "luxe":
-        retired = {f"Battery{end}CasingWall_{side}" for end in ['Top','Bottom'] for side in [-1,1]}
-        expected = (expected-set(revision['plain_parts'])-retired)|set(revision['mapped_parts'])
-        exceptions = (exceptions-set(revision['mapped_parts']))|set(revision['plain_parts'])
-    if json.loads(INFO.read_text()).get('joined_battery_casings'):
-        expected-={f'Battery{end}CasingWall_{side}' for end in ['Top','Bottom'] for side in [-1,1]}
-    if json.loads(INFO.read_text()).get('combined_battery_housings'):
-        expected-={'BatteryTopSupport','BatteryBottomSupport'}
+        retired = {
+            f"Battery{end}CasingWall_{side}"
+            for end in ["Top", "Bottom"]
+            for side in [-1, 1]
+        }
+        expected = (expected - set(revision["plain_parts"]) - retired) | set(
+            revision["mapped_parts"]
+        )
+        exceptions = (exceptions - set(revision["mapped_parts"])) | set(
+            revision["plain_parts"]
+        )
+    if json.loads(INFO.read_text()).get("joined_battery_casings"):
+        expected -= {
+            f"Battery{end}CasingWall_{side}"
+            for end in ["Top", "Bottom"]
+            for side in [-1, 1]
+        }
+    if json.loads(INFO.read_text()).get("combined_battery_housings"):
+        expected -= {"BatteryTopSupport", "BatteryBottomSupport"}
     assert set(policy["mapped_parts"]) == expected
     assert set(policy["point_sample_parts"]) == exceptions
     assert policy["runtime_processing_added"] is False

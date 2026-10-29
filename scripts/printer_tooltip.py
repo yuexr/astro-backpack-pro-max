@@ -73,7 +73,7 @@ def info_mesh():
     assert len(arrow) == 57 and len(arrow_faces) == 62
     assert np.isin(indices[arrow_faces], arrow).all()
 
-    # The approved info disc fits inside the native arrow buffer.
+    # The info disc fits in the native arrow mesh buffer.
     approved = json.loads((HERE.parent / "models/printer-info.json").read_text())
     glyph = approved["parts"]["info"]
     points = np.array(glyph["positions"], dtype="<f4")

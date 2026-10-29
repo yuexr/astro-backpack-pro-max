@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-VERSION = "0.3.3-test.14"
+VERSION = "0.3.4"
 DEVELOPMENT = "-test." in VERSION
 GAME_BUILD = "1.45.1.0"
 ITEM_SIZE_MULTIPLIER = 0.8
@@ -43,4 +43,4 @@ PRINTER_ICON_SCALE = 0.85
 PANEL_RETRACTION_FIX = True
 
 # Luxe emissive materials and palette updates.
-GLOW_TEST = MODEL_STYLE == "luxe"
+LUXE_GLOW = MODEL_STYLE == "luxe"

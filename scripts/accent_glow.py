@@ -7,7 +7,7 @@ from asset_io import es, prop
 from blueprint import Blueprint
 from game_assets import extract
 from kismet import kismet_size
-from settings import GLOW_TEST, OUT, PKG
+from settings import LUXE_GLOW, OUT, PKG
 from visual_events import hook_return
 
 REFRESH = "BPM_RefreshAccentGlow"
@@ -15,7 +15,7 @@ MATERIAL = "BPM_AccentGlowMaterial"
 
 
 def patch(document, corpse=False):
-    if not GLOW_TEST:
+    if not LUXE_GLOW:
         return
     geometry = json.loads((OUT / "geometry-report.json").read_text())
     label = next(

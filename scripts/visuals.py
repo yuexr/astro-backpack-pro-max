@@ -12,7 +12,9 @@ from asset_io import prop as asset_prop
 from kismet import kismet_size as size
 from settings import OUT, PKG
 
-DRONE_SOCKET_INSET = 2.0  # Outer rim seating; keep the recessed centre above the casing.
+DRONE_SOCKET_INSET = (
+    2.0  # Outer rim seating; keep the recessed centre above the casing.
+)
 
 
 def add_visual_components(d, front_parts, corpse=False):

@@ -4,7 +4,7 @@ import copy
 
 from asset_io import ps
 from game_assets import extract
-from settings import GLOW_TEST, MODEL_STYLE, PKG
+from settings import LUXE_GLOW, MODEL_STYLE, PKG
 
 SOURCE = "Astro/Content/Materials/modules/module_gold_01"
 SAMPLES = {
@@ -24,7 +24,7 @@ SAMPLES = {
         "colour": (0.9473065367331999, 0.5906188409193369, 0.19120168274079138),
     },
 }
-if GLOW_TEST:
+if LUXE_GLOW:
     SAMPLES.update(
         {
             "LuxeGoldOrnaments": {

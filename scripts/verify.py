@@ -389,11 +389,18 @@ for mesh in approved["meshes"]:
     approved_parts[mesh["name"]] = np.column_stack(
         [1.46842727662 - q[:, 2], q[:, 0], q[:, 1] - 51]
     ).reshape(-1, 3, 3)
-    if mesh.get('extras',{}).get('preserveAuthoredNormals'):
-        na=approved['accessors'][mesh['primitives'][0]['attributes']['NORMAL']]
-        nv=approved['bufferViews'][na['bufferView']]
-        n=np.frombuffer(blob,'<f4',count=na['count']*3,offset=start+nv.get('byteOffset',0)+na.get('byteOffset',0)).reshape(-1,3)
-        approved_normals[mesh['name']]=np.column_stack([-n[:,2],n[:,0],n[:,1]]).reshape(-1,3,3)
+    if mesh.get("extras", {}).get("preserveAuthoredNormals"):
+        na = approved["accessors"][mesh["primitives"][0]["attributes"]["NORMAL"]]
+        nv = approved["bufferViews"][na["bufferView"]]
+        n = np.frombuffer(
+            blob,
+            "<f4",
+            count=na["count"] * 3,
+            offset=start + nv.get("byteOffset", 0) + na.get("byteOffset", 0),
+        ).reshape(-1, 3)
+        approved_normals[mesh["name"]] = np.column_stack(
+            [-n[:, 2], n[:, 0], n[:, 1]]
+        ).reshape(-1, 3, 3)
 for label in ["backpack_mk2", "backpack_socket", "drone_socket"] + front_labels:
     subprocess.run(
         [
@@ -458,7 +465,12 @@ for label in ["backpack_mk2", "backpack_socket", "drone_socket"] + front_labels:
                 joint = 1 if part.endswith("_-1") else 2
             selected = indices[active][cursor : cursor + count]
             if part in approved_normals:
-                assert np.allclose(a['NORMAL'][selected][:,:,[0,2,1]],approved_normals[part],atol=.009,rtol=0), 'Authored casing smoothing was lost in the cooked mesh'
+                assert np.allclose(
+                    a["NORMAL"][selected][:, :, [0, 2, 1]],
+                    approved_normals[part],
+                    atol=0.009,
+                    rtol=0,
+                ), "Authored casing smoothing was lost in the cooked mesh"
             assert np.all(
                 (a["JOINTS_0"][selected] == joint) | (a["WEIGHTS_0"][selected] == 0)
             ), part
@@ -474,31 +486,55 @@ for label in ["backpack_mk2", "backpack_socket", "drone_socket"] + front_labels:
     elif label == "backpack_mk2":
         expected = np.load(OUT / "body-expected.npz")
         keep = expected["keep"]
-        wanted_indices=expected['indices'][keep]
-        assert np.array_equal(expected['vertex_sources'][wanted_indices],oi[keep]),'Native geometry topology changed beyond equivalent vertex splits'
+        wanted_indices = expected["indices"][keep]
+        assert np.array_equal(expected["vertex_sources"][wanted_indices], oi[keep]), (
+            "Native geometry topology changed beyond equivalent vertex splits"
+        )
         for k in oa:
-            if k == 'TANGENT' and MODEL_STYLE == 'luxe':
-                wanted_t=expected['tangent_buffer'][:,:3].astype(float)
-                wanted_t/=np.linalg.norm(wanted_t,axis=1)[:,None]
-                assert np.allclose(a[k][indices[keep]][:,:,:3],wanted_t[wanted_indices][:,:,[0,2,1]],atol=.009)
-                assert np.array_equal(a[k][indices[keep]][:,:,3],np.sign(expected['tangent_buffer'][wanted_indices,7]))
+            if k == "TANGENT" and MODEL_STYLE == "luxe":
+                wanted_t = expected["tangent_buffer"][:, :3].astype(float)
+                wanted_t /= np.linalg.norm(wanted_t, axis=1)[:, None]
+                assert np.allclose(
+                    a[k][indices[keep]][:, :, :3],
+                    wanted_t[wanted_indices][:, :, [0, 2, 1]],
+                    atol=0.009,
+                )
+                assert np.array_equal(
+                    a[k][indices[keep]][:, :, 3],
+                    np.sign(expected["tangent_buffer"][wanted_indices, 7]),
+                )
                 continue
-            if k=='NORMAL':
-                modified=expected['normal_changed'][wanted_indices]
-                current=a[k][indices[keep]]
-                assert np.array_equal(current[~modified],oa[k][oi[keep]][~modified]),'Unrelated native normals changed'
-                n=expected['tangent_buffer'][:,4:7].astype(float);n/=np.linalg.norm(n,axis=1)[:,None]
-                assert np.allclose(current[modified],n[wanted_indices][:,:,[0,2,1]][modified],atol=.009)
+            if k == "NORMAL":
+                modified = expected["normal_changed"][wanted_indices]
+                current = a[k][indices[keep]]
+                assert np.array_equal(current[~modified], oa[k][oi[keep]][~modified]), (
+                    "Unrelated native normals changed"
+                )
+                n = expected["tangent_buffer"][:, 4:7].astype(float)
+                n /= np.linalg.norm(n, axis=1)[:, None]
+                assert np.allclose(
+                    current[modified],
+                    n[wanted_indices][:, :, [0, 2, 1]][modified],
+                    atol=0.009,
+                )
                 continue
-            wanted=expected['uv'][wanted_indices] if k=='TEXCOORD_0' else oa[k][oi[keep]]
-            assert np.array_equal(a[k][indices[keep]],wanted),k
-        changed = np.any(expected["uv"] != oa["TEXCOORD_0"][expected['vertex_sources']], axis=1)
+            wanted = (
+                expected["uv"][wanted_indices] if k == "TEXCOORD_0" else oa[k][oi[keep]]
+            )
+            assert np.array_equal(a[k][indices[keep]], wanted), k
+        changed = np.any(
+            expected["uv"] != oa["TEXCOORD_0"][expected["vertex_sources"]], axis=1
+        )
         boundary = expected["rear_uv_boundary"]
         assert not changed[~boundary].any(), "Unrelated native body UVs changed"
         if MODEL_STYLE == "luxe":
             assert changed[boundary].all(), "Rear join UV correction is missing"
-            blue=(abs(oa['POSITION'][:,0]-.2702467143535614)<2e-7)&(oa['TEXCOORD_0'][:,1]>.1)
-            assert blue.sum()==8 and np.array_equal(expected['uv'][blue],oa['TEXCOORD_0'][blue]), 'Native blue rear band was recoloured'
+            blue = (abs(oa["POSITION"][:, 0] - 0.2702467143535614) < 2e-7) & (
+                oa["TEXCOORD_0"][:, 1] > 0.1
+            )
+            assert blue.sum() == 8 and np.array_equal(
+                expected["uv"][blue], oa["TEXCOORD_0"][blue]
+            ), "Native blue rear band was recoloured"
         animated = ~np.all(
             (oa["JOINTS_0"][oi] == 0) | (oa["WEIGHTS_0"][oi] == 0), axis=(1, 2)
         )
@@ -510,17 +546,19 @@ for label in ["backpack_mk2", "backpack_socket", "drone_socket"] + front_labels:
         active = (indices[:, 0] != indices[:, 1]) & (indices[:, 1] != indices[:, 2])
         assert active.sum() == 312
         assert np.allclose(
-            a["POSITION"][indices[active]][:,:, [0,2,1]] * 100,
-            expected["positions"][wanted], atol=2e-5, rtol=0
+            a["POSITION"][indices[active]][:, :, [0, 2, 1]] * 100,
+            expected["positions"][wanted],
+            atol=2e-5,
+            rtol=0,
         )
-        original_vertices=expected["source_vertices"]
-        rear=abs(original_vertices[:,2]-original_vertices[:,2].min())<.0001
-        current=expected["positions"][expected["allocated"]]
-        assert np.array_equal(current[~rear],original_vertices[~rear])
-        assert np.array_equal(current[rear,:2],original_vertices[rear,:2])
-        fit=json.loads((OUT/'drone-fit-report.json').read_text())
-        assert fit['inner_clearance_range'][0]>.2
-        assert np.allclose(fit['rear_rim_clearance_range'],[.02,.02],atol=1e-5)
+        original_vertices = expected["source_vertices"]
+        rear = abs(original_vertices[:, 2] - original_vertices[:, 2].min()) < 0.0001
+        current = expected["positions"][expected["allocated"]]
+        assert np.array_equal(current[~rear], original_vertices[~rear])
+        assert np.array_equal(current[rear, :2], original_vertices[rear, :2])
+        fit = json.loads((OUT / "drone-fit-report.json").read_text())
+        assert fit["inner_clearance_range"][0] > 0.2
+        assert np.allclose(fit["rear_rim_clearance_range"], [0.02, 0.02], atol=1e-5)
         assert np.allclose(a["NORMAL"][indices[active]], da["NORMAL"][di], atol=0.009)
         assert np.array_equal(a["TEXCOORD_0"][indices[active]], expected["uv"][wanted])
         rim = da["TEXCOORD_0"][:, 0] > 0.2
@@ -623,13 +661,19 @@ report["offline_checks"].extend(check_glow(assets, geometry))
 report["glow_verified"] = True
 if MODEL_STYLE == "luxe":
     from verify_rear_precision import check_rear_precision
+
     check_rear_precision(assets)
 from verify_model_refinements import check_refinements
-report['offline_checks'].extend(check_refinements(assets,geometry))
+
+report["offline_checks"].extend(check_refinements(assets, geometry))
 from verify_battery_gauge import check_battery_gauge
-report['offline_checks'].append(check_battery_gauge(assets,geometry))
-from verify_luxe_comparisons import check_comparisons
-from model import load_model, INFO
-report['offline_checks'].extend(check_comparisons(load_model(), json.loads(INFO.read_text()), geometry))
+
+report["offline_checks"].append(check_battery_gauge(assets, geometry))
+from model import INFO, load_model
+from verify_model_surfaces import check_surfaces
+
+report["offline_checks"].extend(
+    check_surfaces(load_model(), json.loads(INFO.read_text()), geometry)
+)
 (OUT / "build-report.json").write_text(json.dumps(report, indent=2))
 print(f"{VERSION}: {len(report['offline_checks'])} offline checks passed.")

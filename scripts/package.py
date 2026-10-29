@@ -9,7 +9,7 @@ from game_assets import REPAK
 from settings import (
     ARCHIVE_NAME,
     AUTO_ARM_BLOCKER,
-    GLOW_TEST,
+    LUXE_GLOW,
     MODEL_STYLE,
     OUT,
     PAK_NAME,
@@ -28,8 +28,9 @@ assert (
     == 34
     + 6 * int(PANEL_RETRACTION_FIX)
     + 8 * int(AUTO_ARM_BLOCKER)
-    + 4 * int(GLOW_TEST)
-    + 3 + 2 * int(MODEL_STYLE == 'luxe')
+    + 4 * int(LUXE_GLOW)
+    + 3
+    + 2 * int(MODEL_STYLE == "luxe")
     and report["printer_tooltip_verified"]
     and report["printer_preference_verified"]
 )
