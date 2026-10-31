@@ -21,7 +21,6 @@ def add_hover_helper(editor):
     valid = editor.imp("IsValid", system, "Function")
     equal_object = editor.imp("EqualEqual_ObjectObject", maths, "Function")
     equal_byte = editor.imp("EqualEqual_ByteByte", maths, "Function")
-    negate = editor.imp("Not_PreBool", maths, "Function")
     both = editor.imp("BooleanAND", maths, "Function")
     get_collision = editor.imp("GetCollisionEnabled", primitive, "Function")
     set_collision = editor.imp("SetCollisionEnabled", primitive, "Function")
@@ -63,6 +62,9 @@ def add_hover_helper(editor):
     )
     editor.cls["LoadedProperties"].append(byte)
 
+    from printer_hover_preview import SAVED_MESH, SWAPPED_MESH, add_preview_helper
+
+    preview_helper = add_preview_helper(editor, object_field)
     fid = len(editor.d["Exports"]) + 1
     collider = editor.ex("EX_LocalVariable", Variable=editor.ptr("Collider", fid))
     allow = editor.ex("EX_LocalVariable", Variable=editor.ptr("AllowHover", fid))
@@ -102,15 +104,21 @@ def add_hover_helper(editor):
     already_enabled = editor.call(
         both,
         allow,
-        editor.call(equal_object, collider, editor.var(HOVER_COLLIDER), math=True),
+        editor.call(both, editor.call(valid, collider), editor.call(equal_object, collider, editor.var(HOVER_COLLIDER), math=True), math=True),
         math=True,
     )
     body = [
-        editor.guard(editor.call(negate, already_enabled, math=True)),  # 0 -> return
-        editor.guard(editor.call(valid, editor.var(HOVER_COLLIDER))),  # 1 -> clear
-        collision(editor.var(HOVER_COLLIDER), 0),  # 2: restore the collider we changed
+        editor.guard(already_enabled),
+        editor.guard(editor.call(equal_byte, editor.ctx(collider, editor.call(get_collision)), editor.ex("EX_ByteConst", Value=1), math=True)),
+        editor.call(preview_helper, collider, editor.ex("EX_False"), local=True),
+        editor.ex("EX_Jump", CodeOffset=0),
+        editor.guard(editor.call(valid, editor.var(HOVER_COLLIDER))),
+        collision(editor.var(HOVER_COLLIDER), 0),  # restore the collider we changed
         response(editor.var(HOVER_COLLIDER), editor.var(SAVED_RESPONSE)),
+        editor.call(preview_helper, editor.var(HOVER_COLLIDER), editor.ex("EX_True"), local=True),
         remember(editor.ex("EX_NoObject")),
+        editor.ex("EX_LetObj", VariableExpression=editor.var(SAVED_MESH), AssignmentExpression=editor.ex("EX_NoObject")),
+        editor.ex("EX_LetObj", VariableExpression=editor.var(SWAPPED_MESH), AssignmentExpression=editor.ex("EX_NoObject")),
         editor.guard(allow),
         editor.guard(editor.call(valid, collider)),
         editor.guard(
@@ -122,6 +130,7 @@ def add_hover_helper(editor):
             )
         ),  # preserve any existing native collision setting
         saved_response,
+        editor.call(preview_helper, collider, editor.ex("EX_False"), local=True),
         # QueryOnly alone still ignores the game's separate clickable trace.
         # Change only that channel, preserving every physics/slot response.
         response(collider, editor.ex("EX_ByteConst", Value=2)),
@@ -130,9 +139,11 @@ def add_hover_helper(editor):
     ]
     assert editor.function(SYNC_HOVER, body) == fid
     fn = editor.d["Exports"][fid - 1]
-    fn["ScriptBytecode"][1]["CodeOffset"] = sum(
-        map(kismet_size, fn["ScriptBytecode"][:4])
-    )
+    offsets = [0]
+    for instruction in fn["ScriptBytecode"]:
+        offsets.append(offsets[-1] + kismet_size(instruction))
+    for index, target in {0: 4, 1: 4, 3: len(fn["ScriptBytecode"]) - 2, 4: 8}.items():
+        fn["ScriptBytecode"][index]["CodeOffset"] = offsets[target]
     parameter = copy.deepcopy(object_field)
     parameter.update(Name=editor.name("Collider"), PropertyFlags="CPF_Parm")
     enabled = copy.deepcopy(

@@ -15,3 +15,7 @@ build/
 /CHANGELOG.md
 /README.md
 /models/vanilla-backpack-reference.blend
+
+# Photoshop working files
+/img/**/*.psd
+/img/**/*.psb

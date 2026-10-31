@@ -13,6 +13,7 @@ from auto_arm_items import ITEMS
 from game_assets import ENV, GUI, REPAK, UMODEL
 from luxe_materials import SAMPLES
 from luxe_materials import verify as verify_material_samples
+from printer_hover_preview import PREVIEWS
 from settings import (
     AUTO_ARM_BLOCKER,
     MODEL_STYLE,
@@ -589,7 +590,7 @@ assert (
     and len(listing)
     == 2
     * (
-        11
+        11 + len(PREVIEWS)
         + len(front_labels)
         + 4 * int(PANEL_RETRACTION_FIX)
         + (2 + len(ITEMS)) * int(AUTO_ARM_BLOCKER)
@@ -675,5 +676,9 @@ from verify_model_surfaces import check_surfaces
 report["offline_checks"].extend(
     check_surfaces(load_model(), json.loads(INFO.read_text()), geometry)
 )
+from verify_printer_hover_preview import check_hover_previews
+
+report["offline_checks"].extend(check_hover_previews(assets))
+report["private_printer_hover_verified"] = True
 (OUT / "build-report.json").write_text(json.dumps(report, indent=2))
 print(f"{VERSION}: {len(report['offline_checks'])} offline checks passed.")

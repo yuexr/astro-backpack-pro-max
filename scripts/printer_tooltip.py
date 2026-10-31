@@ -405,6 +405,7 @@ def output_tooltip_mode(editor, hidden, getter):
     state = editor.imp("SetDesiredTooltipState", tooltip_class, "Function")
     maths = editor.imp("KismetMathLibrary", engine)
     both = editor.imp("BooleanAND", maths, "Function")
+    local_control = next(-i-1 for i, entry in enumerate(editor.d["Imports"]) if entry["ObjectName"] == "IsLocallyControlled")
     fid = len(editor.d["Exports"]) + 1
     tooltip = editor.ex("EX_LocalVariable", Variable=editor.ptr("OutputTooltip", fid))
     enabled = editor.ex("EX_LocalVariable", Variable=editor.ptr("OutputVisible", fid))
@@ -438,7 +439,7 @@ def output_tooltip_mode(editor, hidden, getter):
                     Variable=editor.ptr("InputRespondingCollider", tooltip_class),
                 ),
             ),
-            editor.call(both, enabled, editor.call(getter, local=True), math=True),
+            editor.call(both, editor.call(local_control), editor.call(both, enabled, editor.call(getter, local=True), math=True), math=True),
             local=True,
         ),
         editor.guard(enabled),  # 1 -> disabled
@@ -561,8 +562,10 @@ def patch_backpack(document):
 
 def build_printer_assets():
     from printer_preferences import ASSET, preferences_asset
+    from printer_hover_preview import preview_assets
 
     return {
+        **preview_assets(),
         ASSET: (
             preferences_asset(),
             "Astro/Content/Mods/CompactBackpack16/" + ASSET + ".uasset",

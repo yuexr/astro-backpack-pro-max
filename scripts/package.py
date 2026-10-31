@@ -30,6 +30,7 @@ assert (
     + 8 * int(AUTO_ARM_BLOCKER)
     + 4 * int(LUXE_GLOW)
     + 3
+    + 2  # Private printer-hover preview checks.
     + 2 * int(MODEL_STYLE == "luxe")
     and report["printer_tooltip_verified"]
     and report["printer_preference_verified"]

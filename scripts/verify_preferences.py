@@ -39,6 +39,8 @@ class PreferenceVM(PrinterVM):
         if kind == "EX_ObjectConst":
             return self.d["Imports"][-expr["Value"] - 1]["ObjectName"]
         if kind == "EX_DynamicCast":
+            if self.d["Imports"][-expr["ClassPtr"] - 1]["ObjectName"] == "StaticMeshComponent":
+                return super().eval(expr, obj, local)
             value = self.eval(expr["Target"], obj, local)
             return (
                 value

@@ -9,6 +9,7 @@ from asset_io import HERE, es, gltf, ps, xyz
 from game_assets import UMODEL
 from kismet import kismet_size, op_type
 from printer_hover import CLICKABLE_CHANNEL, HOVER_COLLIDER, SYNC_HOVER
+from printer_hover_preview import PREVIEWS, SWAP_PREVIEW
 from printer_tooltip import APPLY_OUTPUT, BUTTON, GET_HIDDEN, HIDDEN, TOGGLE
 from settings import OUT, PRINTER_ICON_SCALE
 from verify_behaviors import VM
@@ -20,6 +21,8 @@ class PrinterVM(VM):
         actor.setdefault(HOVER_COLLIDER, None)
         actor.setdefault("collision_requests", [])
         actor.setdefault("response_requests", [])
+        actor.setdefault("mesh_requests", [])
+        self.mesh_assets = {name: {"mesh_asset": name} for name in [*PREVIEWS, *PREVIEWS.values(), "working_indicator"]}
 
     def run(self, name, args=()):
         # Existing printer checks isolate the visual toggle from persistence;
@@ -28,7 +31,7 @@ class PrinterVM(VM):
 
         if name in [LOAD, SAVE]:
             return
-        if name in [APPLY_OUTPUT, SYNC_HOVER]:
+        if name in [APPLY_OUTPUT, SYNC_HOVER, SWAP_PREVIEW]:
             function = es(self.d)[name]
             local = {
                 p["Name"]: value for p, value in zip(function["LoadedProperties"], args)
@@ -77,6 +80,16 @@ class PrinterVM(VM):
         kind = op_type(x)
         if kind == "EX_NoObject":
             return None
+        if kind == "EX_InstanceVariable" and self.name(x["Variable"]) == "StaticMesh":
+            return obj["mesh"]
+        if kind == "EX_ObjectConst":
+            name = self.d["Imports"][-x["Value"] - 1]["ObjectName"]
+            return self.mesh_assets[name]
+        if kind == "EX_DynamicCast":
+            name = self.d["Imports"][-x["ClassPtr"] - 1]["ObjectName"]
+            if name == "StaticMeshComponent":
+                target = self.eval(x["Target"], obj, local)
+                return target if isinstance(target, dict) and "mesh" in target else None
         if kind == "EX_LetObj":
             self.set(
                 x["VariableExpression"],
@@ -107,6 +120,10 @@ class PrinterVM(VM):
                 return args[0] == args[1]
             if fn == "GetCollisionEnabled":
                 return obj["collision"]
+            if fn == "SetStaticMesh":
+                self.actor["mesh_requests"].append((obj, obj["mesh"], args[0]))
+                obj["mesh"] = args[0]
+                return True
             if fn == "SetCollisionEnabled":
                 assert args[0] in [0, 1], "hover must never enable physics"
                 obj["collision"] = args[0]
