@@ -17,6 +17,8 @@ from settings import (
     GAME_BUILD,
     ITEM_SIZE_MULTIPLIER,
     MAIN_SLOT_SCALE,
+    METADATA_PATH,
+    MOD_ID,
     MODEL_STYLE,
     OUT,
     PAK_NAME,
@@ -309,24 +311,13 @@ def build():
     from visual_events import CHARACTER, character_asset
 
     write_asset(character_asset(), CHARACTER + ".uasset", "DesignAstro")
-    metadata = {
-        "schema_version": 2,
-        "name": "Backpack Pro Max",
-        "mod_id": "BackpackProMax",
-        "author": "yuexr",
-        "description": "16 backpack slots, 80% item size and an info button to hide or show the printer recipe tooltip.",
-        "version": VERSION,
-        "game_build": GAME_BUILD,
-        "sync": "serverclient",
-    }
-    if MODEL_STYLE == "luxe":
-        metadata["name"] += " Luxe"
-    if AUTO_ARM_BLOCKER:
-        metadata["name"] += " + Auto-arm Blocker"
-        metadata["description"] += (
-            " Blocks auto-arm input to player slots and the slots on carried equipment and galastropods."
-        )
-    (STAGE / "metadata.json").write_text(json.dumps(metadata, indent=2))
+    metadata = json.loads(METADATA_PATH.read_text(encoding="utf-8"))
+    assert metadata["mod_id"] == MOD_ID
+    assert metadata["version"] == VERSION
+    assert metadata["game_build"] == GAME_BUILD
+    (STAGE / "metadata.json").write_text(
+        json.dumps(metadata, indent=2) + "\n", encoding="utf-8"
+    )
     pak = OUT / PAK_NAME
     subprocess.run(
         [str(REPAK), "pack", str(STAGE), str(pak)],

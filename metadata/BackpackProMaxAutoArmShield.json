@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "name": "Backpack Pro Max + Auto Arm Shield",
+  "mod_id": "BackpackProMaxAutoArmShield",
+  "author": "yuexr",
+  "description": "Redesigned 16 slot backpack mod that is fully functional and multiplayer safe. Custom palette-adaptive 3D models. Better printer control, vanilla bug fixes, and more additional features.",
+  "version": "1.0.0",
+  "game_build": "1.45.1.0",
+  "sync": "serverclient",
+  "homepage": "https://github.com/yuexr/astro-backpack-pro-max",
+  "enable_ue4ss": false,
+  "download": {
+    "type": "index_file",
+    "url": "https://yuexr.github.io/astro/mods/index.json"
+  }
+}

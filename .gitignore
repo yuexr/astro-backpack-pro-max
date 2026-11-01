@@ -12,10 +12,9 @@ scripts/native-connected-parts.json
 *.blend[0-9]
 build/
 .ruff_cache/
-/CHANGELOG.md
-/README.md
 /models/vanilla-backpack-reference.blend
 
 # Photoshop working files
 /img/**/*.psd
 /img/**/*.psb
+working/

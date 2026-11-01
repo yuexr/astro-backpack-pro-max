@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-VERSION = "0.4.0"
+VERSION = "1.0.0"
 DEVELOPMENT = "-test." in VERSION
 GAME_BUILD = "1.45.1.0"
 ITEM_SIZE_MULTIPLIER = 0.8
@@ -33,10 +33,14 @@ if AUTO_ARM_BLOCKER:
 # old saves still use this path
 PKG = "/Game/Mods/CompactBackpack16/"
 VARIANT = ("-Luxe" if MODEL_STYLE == "luxe" else "") + (
-    "-AutoArm" if AUTO_ARM_BLOCKER else ""
+    "-AutoArmShield" if AUTO_ARM_BLOCKER else ""
 )
-PAK_NAME = f"000-BackpackProMax-{VERSION}_P.pak"
-ARCHIVE_NAME = f"Backpack-Pro-Max{VARIANT}-{VERSION}-Vortex.zip"
+MOD_ID = "BackpackProMax" + ("Luxe" if MODEL_STYLE == "luxe" else "") + (
+    "AutoArmShield" if AUTO_ARM_BLOCKER else ""
+)
+METADATA_PATH = ROOT / "metadata" / f"{MOD_ID}.json"
+PAK_NAME = f"000-{MOD_ID}-{VERSION}_P.pak"
+ARCHIVE_NAME = f"Backpack-Pro-Max{VARIANT}-{VERSION}.zip"
 PRINTER_ICON_SCALE = 0.85
 
 # turn this off if vanilla fixes the catalog/mission log bugs

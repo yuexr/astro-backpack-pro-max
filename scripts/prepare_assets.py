@@ -16,6 +16,7 @@ def prepare():
         "Character/AstroCorpse",
         "Items/Catalog/BackpackCatalog",
         "Items/Catalog/BackpackCatalog_Creative",
+        "Animations/PortableDevices/BackpackCatalog/BackpackCatalogCreative_AnimBP",
         "Components/Printhead_Backpack",
         "Components/PrintheadSelector",
         "ControlPanels/ModularControlPanel/PanelParts/ControlPanelButton_Round",

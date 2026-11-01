@@ -123,15 +123,15 @@ def check_build_options():
     # Import settings in fresh processes, as the build's child scripts do.
     code = (
         "import json,sys;sys.path.insert(0,sys.argv[1]);"
-        "from settings import OUT,PAK_NAME,ARCHIVE_NAME,MODEL_STYLE;"
-        "print(json.dumps([str(OUT),PAK_NAME,ARCHIVE_NAME,MODEL_STYLE]))"
+        "from settings import OUT,PAK_NAME,ARCHIVE_NAME,MODEL_STYLE,METADATA_PATH,MOD_ID;"
+        "print(json.dumps([str(OUT),PAK_NAME,ARCHIVE_NAME,MODEL_STYLE,str(METADATA_PATH),MOD_ID]))"
     )
     for style in ["base", "luxe"]:
         for blocker in [False, True]:
             env = dict(
                 os.environ, BPM_MODEL=style, BPM_AUTO_ARM_BLOCKER=str(int(blocker))
             )
-            out, pak, archive, selected = json.loads(
+            out, pak, archive, selected, metadata_path, mod_id = json.loads(
                 subprocess.check_output(
                     [sys.executable, "-c", code, str(ROOT / "scripts")],
                     env=env,
@@ -140,10 +140,24 @@ def check_build_options():
             )
             assert selected == style
             suffix = ("-Luxe" if style == "luxe" else "") + (
-                "-AutoArm" if blocker else ""
+                "-AutoArmShield" if blocker else ""
             )
-            assert pak == f"000-BackpackProMax-{settings.VERSION}_P.pak"
-            assert archive == f"Backpack-Pro-Max{suffix}-{settings.VERSION}-Vortex.zip"
+            expected_id = "BackpackProMax" + ("Luxe" if style == "luxe" else "") + (
+                "AutoArmShield" if blocker else ""
+            )
+            metadata = json.loads(Path(metadata_path).read_text(encoding="utf-8"))
+            assert mod_id == metadata["mod_id"] == expected_id
+            assert metadata["version"] == settings.VERSION
+            assert metadata["game_build"] == settings.GAME_BUILD
+            assert metadata["schema_version"] == 2
+            assert metadata["enable_ue4ss"] is False
+            assert metadata["sync"] == "serverclient"
+            assert metadata["download"] == {
+                "type": "index_file",
+                "url": "https://yuexr.github.io/astro/mods/index.json",
+            }
+            assert pak == f"000-{expected_id}-{settings.VERSION}_P.pak"
+            assert archive == f"Backpack-Pro-Max{suffix}-{settings.VERSION}.zip"
             assert ("luxe" in Path(out).parts) == (style == "luxe")
             assert (Path(out).name == "auto-arm") == blocker
     return [

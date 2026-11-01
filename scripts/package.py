@@ -1,4 +1,4 @@
-"""Zip the checked PAK for Vortex."""
+"""Zip the checked PAK for Vortex and AML-Classic."""
 
 import hashlib
 import json
@@ -10,6 +10,7 @@ from settings import (
     ARCHIVE_NAME,
     AUTO_ARM_BLOCKER,
     LUXE_GLOW,
+    METADATA_PATH,
     MODEL_STYLE,
     OUT,
     PAK_NAME,
@@ -43,6 +44,9 @@ pak = OUT / PAK_NAME
 assert hashlib.sha256(pak.read_bytes()).hexdigest() == report["pak_sha256"]
 metadata = json.loads(
     subprocess.check_output([str(REPAK), "get", str(pak), "metadata.json"])
+)
+assert metadata == json.loads(METADATA_PATH.read_text(encoding="utf-8")), (
+    "PAK metadata differs from the selected variant metadata"
 )
 assert pak.name == f"000-{metadata['mod_id']}-{metadata['version']}_P.pak", (
     "PAK filename must match metadata ID and version"

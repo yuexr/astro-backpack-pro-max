@@ -17,6 +17,8 @@ from printer_hover_preview import PREVIEWS
 from settings import (
     AUTO_ARM_BLOCKER,
     MODEL_STYLE,
+    METADATA_PATH,
+    MOD_ID,
     OUT,
     PAK_NAME,
     PANEL_RETRACTION_FIX,
@@ -578,6 +580,10 @@ for label in ["backpack_mk2", "backpack_socket", "drone_socket"] + front_labels:
         for k in ["TEXCOORD_0", "NORMAL", "TANGENT", "JOINTS_0", "WEIGHTS_0"]:
             assert np.array_equal(a[k][indices[sel]], oa[k][oi[sel]])
 
+metadata = json.loads((STAGE / "metadata.json").read_text(encoding="utf-8"))
+assert metadata == json.loads(METADATA_PATH.read_text(encoding="utf-8"))
+assert metadata["mod_id"] == MOD_ID and metadata["version"] == VERSION
+assert PAK_NAME == f"000-{metadata['mod_id']}-{metadata['version']}_P.pak"
 pak = OUT / PAK_NAME
 listing = subprocess.check_output(
     [str(REPAK), "list", str(pak)], text=True
